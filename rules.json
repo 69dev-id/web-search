@@ -1,0 +1,1285 @@
+[
+    {
+        "cmsName": "CWP",
+        "outputFIle": "CWP.txt",
+        "pattern": [
+            ":2030/",
+            ":2031/",
+            ":2030|",
+            ":2031|",
+            ":2030:",
+            ":2031:",
+            ":2030 ",
+            ":2031 "
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Webmin",
+        "outputFIle": "Webmin.txt",
+        "pattern": [
+            ":10000/",
+            ":10000|",
+            ":10000:",
+            ":10000 "
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "ISPConfig",
+        "outputFIle": "ISPConfig.txt",
+        "pattern": [
+            ":8080/",
+            ":8080|",
+            ":8080:",
+            ":8080 "
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "VestaCP",
+        "outputFIle": "VestaCP.txt",
+        "pattern": [
+            ":8083/",
+            ":8083|",
+            ":8083:",
+            ":8083 "
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "aaPanel",
+        "outputFIle": "aaPanel.txt",
+        "pattern": [
+            ":8888/",
+            ":8888|",
+            ":8888:",
+            ":8888 "
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "froxlor",
+        "outputFIle": "froxlor.txt",
+        "pattern": [
+            "/froxlor"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "ajenti",
+        "outputFIle": "ajenti.txt",
+        "pattern": [
+            ":8000/",
+            ":8000:",
+            ":8000|",
+            ":8000 "
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "NodeWorx",
+        "outputFIle": "NodeWorx.txt",
+        "pattern": [
+            ":2443/",
+            ":2443:",
+            ":2443|",
+            ":2443 ",
+            "/nodeworx"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "SiteWorx",
+        "outputFIle": "SiteWorx.txt",
+        "pattern": [
+            ":2083/",
+            ":2083:",
+            ":2083|",
+            ":2083 "
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "ApisCP",
+        "outputFIle": "ApisCP.txt",
+        "pattern": [
+            ":2083/",
+            ":2083|",
+            ":2083:",
+            ":2083 "
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "ZPanel",
+        "outputFIle": "ZPanel.txt",
+        "pattern": [
+            "/zpanel"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Sentora",
+        "outputFIle": "Sentora.txt",
+        "pattern": [
+            "/sentora"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "BlueOnyx",
+        "outputFIle": "BlueOnyx.txt",
+        "pattern": [
+            ":444/",
+            ":444|",
+            ":81/",
+            ":81|",
+            ":444:",
+            ":81:",
+            ":444 ",
+            ":81 "
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Kloxo-MR",
+        "outputFIle": "Kloxo-MR.txt",
+        "pattern": [
+            ":7777/",
+            ":7778/",
+            ":7777|",
+            ":7778|",
+            ":7777:",
+            ":7778:",
+            ":7777 ",
+            ":7778 "
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "CloudPanel",
+        "outputFIle": "CloudPanel.txt",
+        "pattern": [
+            ":8443/",
+            ":8443|",
+            ":8443:",
+            ":8443 "
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "i-MSCP",
+        "outputFIle": "i-MSCP.txt",
+        "pattern": [
+            ":8080/",
+            ":8080|",
+            ":8080:",
+            ":8080 "
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "BrainyCP",
+        "outputFIle": "BrainyCP.txt",
+        "pattern": [
+            ":8000/",
+            ":8000|",
+            ":8000:",
+            ":8000 "
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "VHCS",
+        "outputFIle": "VHCS.txt",
+        "pattern": [
+            "/vhcs2"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "FeatherPanel",
+        "outputFIle": "FeatherPanel.txt",
+        "pattern": [
+            ":8080/",
+            ":8080:",
+            ":8080|",
+            ":8080 "
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "EHCP",
+        "outputFIle": "EHCP.txt",
+        "pattern": [
+            "/ehcp"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "KeyHelp",
+        "outputFIle": "KeyHelp.txt",
+        "pattern": [
+            ":8443/",
+            ":8443:",
+            ":8443|",
+            ":8443 "
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "DTC",
+        "outputFIle": "DTC.txt",
+        "pattern": [
+            "/dtcadmin"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "SysCP",
+        "outputFIle": "SysCP.txt",
+        "pattern": [
+            "/syscp"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "TYPO3",
+        "outputFIle": "TYPO3.txt",
+        "pattern": [
+            "/typo3"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "GHOST",
+        "outputFIle": "GHOST.txt",
+        "pattern": [
+            "/ghost/",
+            "/ghost:",
+            "/ghost|",
+            "/ghost "
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "OctoberCMS",
+        "outputFIle": "OctoberCMS.txt",
+        "pattern": [
+            "/backend:",
+            "/backend/",
+            "/backend|",
+            "/backend "
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Umbraco",
+        "outputFIle": "Umbraco.txt",
+        "pattern": [
+            "/umbraco:",
+            "/umbraco|",
+            "/umbraco/",
+            "/umbraco "
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "OdooCMS",
+        "outputFIle": "OdooCMS.txt",
+        "pattern": [
+            "/web/login:",
+            "/web/login|",
+            "/web/login/",
+            "/web/login "
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Chamilo",
+        "outputFIle": "Chamilo.txt",
+        "pattern": [
+            "/index.php?login"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "MediaWiki",
+        "outputFIle": "MediaWiki.txt",
+        "pattern": [
+            "/index.php?title=Special:UserLogin"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "DokuWiki",
+        "outputFIle": "DokuWiki.txt",
+        "pattern": [
+            "/doku.php?do=login"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "XWiki",
+        "outputFIle": "XWiki.txt",
+        "pattern": [
+            "/XWiki/XWikiLogin"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "RoundCube",
+        "outputFIle": "RoundCube.txt",
+        "pattern": [
+            "/roundcube"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "FTP",
+        "outputFIle": "ftp.txt",
+        "pattern": [
+            "ftp.",
+            "sftp.",
+            "ftp://",
+            "sftp://"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "WordPress",
+        "outputFIle": "wp.txt",
+        "pattern": [
+            "/wp-login.php",
+            "/wp-admin",
+            "/wp-content"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Joomla",
+        "outputFIle": "joomla.txt",
+        "pattern": [
+            "/administrator/index.php",
+            "/administrator",
+            "joomla"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "OpenCart",
+        "outputFIle": "opencart.txt",
+        "pattern": [
+            "/admin/index.php"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Drupal",
+        "outputFIle": "drupal.txt",
+        "pattern": [
+            "/user/login",
+            "/user/register"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Moodle",
+        "outputFIle": "moodle.txt",
+        "pattern": [
+            "/admin/index.php",
+            "/login/index.php",
+            "/login/forgot_password.php",
+            "elearning.",
+            "learn.",
+            "e-learning.",
+            "lms."
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "CyberPanel",
+        "outputFIle": "cyberpanel.txt",
+        "pattern": [
+            ":8090",
+            ":8443"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "EvoPanel",
+        "outputFIle": "evopanel.txt",
+        "pattern": [
+            "/evo/",
+            ":2222"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Plesk",
+        "outputFIle": "plesk.txt",
+        "pattern": [
+            "login_up.php",
+            ":8443"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "PrestaShop",
+        "outputFIle": "prestashop.txt",
+        "pattern": [
+            "/admin\\d*/index\\.php"
+        ],
+        "isRegex": true
+    },
+    {
+        "cmsName": "cPanel",
+        "outputFIle": "cpanel.txt",
+        "pattern": [
+            ":2083",
+            ":2082",
+            "cpanel."
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "WHM",
+        "outputFIle": "whm.txt",
+        "pattern": [
+            ":2087",
+            ":2086",
+            "whm."
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "phpMyAdmin",
+        "outputFIle": "phpmyadmin.txt",
+        "pattern": [
+            "/phpmyadmin"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Adminer",
+        "outputFIle": "adminer.txt",
+        "pattern": [
+            "adminer.php"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "HestiaCP",
+        "outputFIle": "hestiacp.txt",
+        "pattern": [
+            ":8083"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "OJS",
+        "outputFIle": "ojs.txt",
+        "pattern": [
+            "/index.php/",
+            "ejournal",
+            "journal",
+            "e-journal"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Chamilo",
+        "outputFIle": "chamilo.txt",
+        "pattern": [
+            "/main/auth",
+            "/main/admin/index.php"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "OpenDesa",
+        "outputFIle": "opendesa.txt",
+        "pattern": [
+            "/siteman"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "phpBB",
+        "outputFIle": "phpbb.txt",
+        "pattern": [
+            "ucp.php",
+            "index.php?sid="
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "WebLogic",
+        "outputFIle": "WebLogic.txt",
+        "pattern": [
+            ":7001 ",
+            ":7001:",
+            ":7001|",
+            ":7001/",
+            ":7002 ",
+            ":7002:",
+            ":7002|",
+            ":7002/",
+            "/console/login/LoginForm.jsp"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "textpattern",
+        "outputFIle": "textpattern.txt",
+        "pattern": [
+            "/textpattern"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "DirectAdmin",
+        "outputFIle": "directadmin.txt",
+        "pattern": [
+            ":2222/",
+            ":2222:",
+            ":2222|",
+            ":2222 ",
+            "/CMD_LOGIN"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Virtualmin",
+        "outputFIle": "virtualmin.txt",
+        "pattern": [
+            "/session_login.cgi",
+            "/virtual-server/"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "ISPmanager",
+        "outputFIle": "ispmanager.txt",
+        "pattern": [
+            ":1500/",
+            ":1500:",
+            ":1500|",
+            ":1500 ",
+            ":1501/",
+            ":1501:",
+            ":1501|",
+            ":1501 ",
+            "/ispmgr"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Webuzo",
+        "outputFIle": "webuzo.txt",
+        "pattern": [
+            ":2004/",
+            ":2004:",
+            ":2004|",
+            ":2004 ",
+            ":2005/",
+            ":2005:",
+            ":2005|",
+            ":2005 ",
+            "/enduser"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "tinyCP",
+        "outputFIle": "tinycp.txt",
+        "pattern": [
+            ":9998/",
+            ":9998:",
+            ":9998|",
+            ":9998 ",
+            ":9997/",
+            ":9997:",
+            ":9997|",
+            ":9997 "
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "OpenLiteSpeed",
+        "outputFIle": "openlitespeed.txt",
+        "pattern": [
+            ":7080/",
+            ":7080:",
+            ":7080|",
+            ":7080 ",
+            "/login.php"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Cockpit",
+        "outputFIle": "cockpit.txt",
+        "pattern": [
+            ":9090/",
+            ":9090:",
+            ":9090|",
+            ":9090 ",
+            "/cockpit/login"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Portainer",
+        "outputFIle": "portainer.txt",
+        "pattern": [
+            ":9000/",
+            ":9000:",
+            ":9000|",
+            ":9000 ",
+            ":9443/",
+            ":9443:",
+            ":9443|",
+            ":9443 ",
+            "/api/auth"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "CapRover",
+        "outputFIle": "caprover.txt",
+        "pattern": [
+            ":3000/",
+            ":3000:",
+            ":3000|",
+            ":3000 ",
+            "/api/v2/login"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Cloudron",
+        "outputFIle": "cloudron.txt",
+        "pattern": [
+            "/api/v1/auth/login",
+            "/cloudron/avatar"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "CasaOS",
+        "outputFIle": "casaos.txt",
+        "pattern": [
+            "/v1/auth/login",
+            "/v2/local_storage"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Dokploy",
+        "outputFIle": "dokploy.txt",
+        "pattern": [
+            "/api/auth/login",
+            "/dashboard/project"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Pterodactyl",
+        "outputFIle": "pterodactyl.txt",
+        "pattern": [
+            "/auth/login",
+            "/admin/nests"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "PufferPanel",
+        "outputFIle": "pufferpanel.txt",
+        "pattern": [
+            "/api/users/login"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Magento",
+        "outputFIle": "magento.txt",
+        "pattern": [
+            "/customer/account/login",
+            "/static/adminhtml/"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Shopware",
+        "outputFIle": "shopware.txt",
+        "pattern": [
+            "/backend/auth/login",
+            "/recovery/install/index.php"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "CraftCMS",
+        "outputFIle": "craftcms.txt",
+        "pattern": [
+            "/cpresources/",
+            "/admin/login"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Contao",
+        "outputFIle": "contao.txt",
+        "pattern": [
+            "/contao",
+            "/contao/login"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "MODX",
+        "outputFIle": "modx.txt",
+        "pattern": [
+            "/manager/",
+            "/connectors/"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "ConcreteCMS",
+        "outputFIle": "concretecms.txt",
+        "pattern": [
+            "/ccm/system/authentication/login",
+            "/index.php/login/-/dashboard"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Silverstripe",
+        "outputFIle": "silverstripe.txt",
+        "pattern": [
+            "/Security/login"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "ProcessWire",
+        "outputFIle": "processwire.txt",
+        "pattern": [
+            "/processwire/",
+            "/processwire/login/"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "BoltCMS",
+        "outputFIle": "boltcms.txt",
+        "pattern": [
+            "/bolt/login",
+            "/bolt"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Kirby",
+        "outputFIle": "kirby.txt",
+        "pattern": [
+            "/panel/login",
+            "/panel"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Strapi",
+        "outputFIle": "strapi.txt",
+        "pattern": [
+            "/admin/init",
+            "/admin/auth/login"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Directus",
+        "outputFIle": "directus.txt",
+        "pattern": [
+            "/admin/login",
+            "/server/health"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Wagtail",
+        "outputFIle": "wagtail.txt",
+        "pattern": [
+            "/admin/login/",
+            "/admin/pages/"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Plone",
+        "outputFIle": "plone.txt",
+        "pattern": [
+            "/@@login",
+            "/login_form"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "e107",
+        "outputFIle": "e107.txt",
+        "pattern": [
+            "/e107_admin/",
+            "/e107_plugins/"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "TikiWiki",
+        "outputFIle": "tikiwiki.txt",
+        "pattern": [
+            "/tiki-login.php",
+            "/tiki-index.php"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "OrchardCore",
+        "outputFIle": "orchardcore.txt",
+        "pattern": [
+            "/Admin/Login"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "MagnoliaCMS",
+        "outputFIle": "magnoliacms.txt",
+        "pattern": [
+            "/.magnolia/admincentral",
+            "/magnoliaAuthor"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Sitecore",
+        "outputFIle": "sitecore.txt",
+        "pattern": [
+            "/sitecore/login",
+            "/sitecore/shell"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "AdobeAEM",
+        "outputFIle": "adobeaem.txt",
+        "pattern": [
+            "/libs/granite/core/content/login.html",
+            "/crx/de/"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Liferay",
+        "outputFIle": "liferay.txt",
+        "pattern": [
+            "/c/portal/login",
+            "/group/control_panel"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Kentico",
+        "outputFIle": "kentico.txt",
+        "pattern": [
+            "/CMSPages/logon.aspx",
+            "/Admin/CMSAdministration"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Sitefinity",
+        "outputFIle": "sitefinity.txt",
+        "pattern": [
+            "/Sitefinity/Authenticate/SWT",
+            "/Sitefinity"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "AbanteCart",
+        "outputFIle": "abantecart.txt",
+        "pattern": [
+            "/admin/index.php?s=admin",
+            "/index.php?rt=account/login"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "nopCommerce",
+        "outputFIle": "nopcommerce.txt",
+        "pattern": [
+            "/login?returnUrl=%2Fadmin%2F"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "osCommerce",
+        "outputFIle": "oscommerce.txt",
+        "pattern": [
+            "/admin/login.php",
+            "/catalog/login.php"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Bagisto",
+        "outputFIle": "bagisto.txt",
+        "pattern": [
+            "/admin/login",
+            "/admin/dashboard"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "SharePoint",
+        "outputFIle": "sharepoint.txt",
+        "pattern": [
+            "/_layouts/15/signin.aspx",
+            "/_layouts/15/sharepoint.aspx",
+            "/_vti_bin/"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "DNN",
+        "outputFIle": "dnn.txt",
+        "pattern": [
+            "/DesktopModules/Admin/Dnn.PersonaBar/",
+            "/Install/InstallWizard.aspx"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "OpenCms",
+        "outputFIle": "opencms-platform.txt",
+        "pattern": [
+            "/opencms/login.jsp",
+            "/system/workplace/"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "CanvasLMS",
+        "outputFIle": "canvaslms.txt",
+        "pattern": [
+            "/login/canvas",
+            "/api/v1/courses"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Blackboard",
+        "outputFIle": "blackboard.txt",
+        "pattern": [
+            "/webapps/login/",
+            "/webapps/portal/execute",
+            "/learn/api/public"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Sakai",
+        "outputFIle": "sakai.txt",
+        "pattern": [
+            "/portal/login",
+            "/direct/session",
+            "/portal/site"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "ILIAS",
+        "outputFIle": "ilias.txt",
+        "pattern": [
+            "/login.php?target=",
+            "/ilias.php?baseClass=ilDashboardGUI"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "OpenEdX",
+        "outputFIle": "openedx.txt",
+        "pattern": [
+            "/login_ajax",
+            "/api/user/v1/account/login_session/"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "CKAN",
+        "outputFIle": "ckan.txt",
+        "pattern": [
+            "/api/3/action/package_search",
+            "/user/login?came_from="
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Alfresco",
+        "outputFIle": "alfresco.txt",
+        "pattern": [
+            "/share/page/",
+            "/alfresco/api/-default-/public/alfresco/versions/1/authentication"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "DSpace",
+        "outputFIle": "dspace.txt",
+        "pattern": [
+            "/xmlui/",
+            "/jspui/",
+            "/mydspace"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "EPrints",
+        "outputFIle": "eprints.txt",
+        "pattern": [
+            "/cgi/users/login",
+            "/cgi/search/archive"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Omeka",
+        "outputFIle": "omeka.txt",
+        "pattern": [
+            "/admin/users/login",
+            "/omeka-s/"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "SLiMS",
+        "outputFIle": "slims.txt",
+        "pattern": [
+            "slims",
+            "/index.php?p=login"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "OpenEMR",
+        "outputFIle": "openemr.txt",
+        "pattern": [
+            "/interface/login/login.php",
+            "/portal/index.php",
+            "/portal/account/signin"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "OpenMRS",
+        "outputFIle": "openmrs.txt",
+        "pattern": [
+            "/openmrs/login.htm",
+            "/openmrs/admin"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Zimbra",
+        "outputFIle": "zimbra.txt",
+        "pattern": [
+            ":7071/",
+            ":7071:",
+            ":7071|",
+            ":7071 ",
+            "/zimbraAdmin/"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "ProxmoxVE",
+        "outputFIle": "proxmoxve.txt",
+        "pattern": [
+            ":8006/",
+            ":8006:",
+            ":8006|",
+            ":8006 ",
+            "/api2/json/access/ticket"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "TrueNAS",
+        "outputFIle": "truenas.txt",
+        "pattern": [
+            "/ui/sessions/signin",
+            "/api/v2.0/auth/login"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Nextcloud",
+        "outputFIle": "nextcloud.txt",
+        "pattern": [
+            "/index.php/login",
+            "/ocs/v2.php",
+            "/remote.php/webdav"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "GeoServer",
+        "outputFIle": "geoserver.txt",
+        "pattern": [
+            "/geoserver/web/",
+            "/geoserver/rest/"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Koha",
+        "outputFIle": "koha.txt",
+        "pattern": [
+            "/cgi-bin/koha/opac-main.pl",
+            "/cgi-bin/koha/opac-user.pl",
+            "/cgi-bin/koha/mainpage.pl",
+            "/cgi-bin/koha/opac-search.pl"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "VuFind",
+        "outputFIle": "vufind.txt",
+        "pattern": [
+            "/vufind/Install/Home",
+            "/MyResearch/Home",
+            "/vufind/"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "EvergreenILS",
+        "outputFIle": "evergreenils.txt",
+        "pattern": [
+            "/eg/opac/login",
+            "/eg/opac/home",
+            "/eg/opac/"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "GeoNetwork",
+        "outputFIle": "geonetwork.txt",
+        "pattern": [
+            "/geonetwork",
+            "/srv/eng/catalog.search",
+            "/srv/api/"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "OpenKM",
+        "outputFIle": "openkm.txt",
+        "pattern": [
+            "/OpenKM/frontend/index.jsp",
+            "/OpenKM/login.jsp",
+            "/OpenKM/"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Nuxeo",
+        "outputFIle": "nuxeo.txt",
+        "pattern": [
+            "/nuxeo/login.jsp",
+            "/nuxeo/ui/",
+            "/nuxeo/site/automation/login"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "ArcGISPortal",
+        "outputFIle": "arcgisportal.txt",
+        "pattern": [
+            ":7443/arcgis/home",
+            "/arcgis/home",
+            "/arcgis/portaladmin/"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "ArcGISServer",
+        "outputFIle": "arcgisserver.txt",
+        "pattern": [
+            ":6443/arcgis/admin",
+            "/arcgis/rest/services",
+            "/arcgis/manager/"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "LPSE",
+        "outputFIle": "lpse.txt",
+        "pattern": [
+            "lpse.",
+            "/eproc4",
+            "spse.inaproc.id/"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "SIMRSKhanza",
+        "outputFIle": "simrskhanza.txt",
+        "pattern": [
+            "SIMRS KhanzaHMS",
+            "simkeskhanza.com/webapps",
+            "Khanza.Soft Media"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "mLITE",
+        "outputFIle": "mlite.txt",
+        "pattern": [
+            "Powered by mLITE",
+            "Login SIMRS-Lite",
+            "mlite.id"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Bahmni",
+        "outputFIle": "bahmni.txt",
+        "pattern": [
+            "/bahmni/home",
+            "/bahmni/home/index.html",
+            "/bahmni_config/openmrs/apps/home"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Islandora",
+        "outputFIle": "islandora.txt",
+        "pattern": [
+            "/islandora/object/",
+            "/islandora/search/"
+        ],
+        "isRegex": false
+    },
+    {
+        "cmsName": "Greenstone",
+        "outputFIle": "greenstone.txt",
+        "pattern": [
+            "/gsdl/cgi-bin/library.cgi",
+            "/greenstone3/library"
+        ],
+        "isRegex": false
+    }
+]

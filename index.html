@@ -199,6 +199,33 @@
     min-width: 184px;
   }
 
+  .feature-wrap {
+    display: flex;
+    align-items: center;
+    min-height: 48px;
+    padding: 0 14px;
+    border-radius: 16px;
+    border: 1px solid rgba(102, 131, 175, 0.18);
+    background: rgba(5, 13, 24, 0.72);
+  }
+
+  .feature-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .feature-toggle input {
+    width: 16px;
+    height: 16px;
+    accent-color: #3a90ff;
+  }
+
   .engine-label {
     color: var(--muted);
     font-size: 11px;
@@ -288,6 +315,14 @@
     color: var(--muted);
   }
 
+  .filter-output {
+    margin-top: 6px;
+    font-size: 12px;
+    color: rgba(141, 162, 198, 0.8);
+    font-family: var(--font-mono);
+    word-break: break-all;
+  }
+
   .progress-shell {
     margin-top: 14px;
     padding: 16px 18px 14px;
@@ -347,6 +382,107 @@
 
   .results-panel {
     overflow: hidden;
+  }
+
+  .monitor-panel {
+    margin-bottom: 18px;
+    overflow: hidden;
+  }
+
+  .monitor-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(14, 24, 40, 0.78);
+    flex-wrap: wrap;
+  }
+
+  .monitor-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .monitor-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .monitor-subtitle {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .monitor-body {
+    padding: 14px 18px 18px;
+    background: rgba(10, 19, 33, 0.72);
+  }
+
+  .monitor-output-path {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: rgba(141, 162, 198, 0.8);
+    margin-bottom: 12px;
+    word-break: break-all;
+  }
+
+  .monitor-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+  }
+
+  .monitor-card {
+    border: 1px solid rgba(102, 131, 175, 0.16);
+    border-radius: 16px;
+    padding: 14px;
+    background: rgba(8, 14, 24, 0.58);
+  }
+
+  .monitor-card-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .monitor-card-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .monitor-card-file {
+    margin-top: 4px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    word-break: break-all;
+  }
+
+  .monitor-card-count {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--green);
+    white-space: nowrap;
+  }
+
+  .monitor-empty {
+    min-height: 120px;
+    display: grid;
+    place-items: center;
+    border: 1px dashed rgba(102, 131, 175, 0.18);
+    border-radius: 16px;
+    color: var(--muted);
+    font-size: 13px;
+    text-align: center;
+    padding: 20px;
   }
 
   .results-header {
@@ -688,6 +824,12 @@
           <option value="hybrid">Hybrid (ugrep + filter)</option>
         </select>
       </div>
+      <div class="feature-wrap">
+        <label class="feature-toggle" for="fix-filter-toggle">
+          <input id="fix-filter-toggle" type="checkbox" checked>
+          <span>Fix + CMS filtering</span>
+        </label>
+      </div>
       <div class="button-row">
         <button class="btn btn-start" id="btn-start" type="button" onclick="startSearch()">Start Search</button>
         <button class="btn btn-pause" id="btn-pause" type="button" onclick="togglePause()" disabled>Pause</button>
@@ -696,6 +838,7 @@
       </div>
     </div>
     <div class="engine-hint" id="engine-hint">Native: exact byte progress + ETA, with the strictest line cleanup and filtering.</div>
+    <div class="filter-output" id="filter-output">Fix + CMS filtering enabled. Output will be written during search.</div>
 
     <div class="progress-shell">
       <div class="progress-top">
@@ -712,6 +855,25 @@
     </div>
   </section>
 
+  <section class="panel monitor-panel">
+    <div class="monitor-header">
+      <div class="monitor-meta">
+        <div class="monitor-copy">
+          <span class="section-title">Category Monitor</span>
+          <span class="monitor-subtitle">Realtime counters for CMS, panels, admin tools, and service rules from <code>rules.json</code>.</span>
+        </div>
+        <span class="chip" id="monitor-panels-chip">0 Categories</span>
+        <span class="chip" id="monitor-lines-chip">0 Matched Lines</span>
+      </div>
+    </div>
+    <div class="monitor-body">
+      <div class="monitor-output-path" id="monitor-output-path">Filter output: --</div>
+      <div class="monitor-list" id="monitor-list">
+        <div class="monitor-empty">Fix + CMS filtering is enabled by default. Start a search to monitor matched categories here.</div>
+      </div>
+    </div>
+  </section>
+
   <section class="panel results-panel">
     <div class="results-header">
       <div class="results-meta">
@@ -719,6 +881,7 @@
         <span class="chip" id="results-badge">0 Found</span>
         <span class="chip query" id="query-chip">No active query</span>
         <span class="chip" id="engine-chip">Engine: native</span>
+        <span class="chip" id="pipeline-chip">Fix+Rules: on</span>
         <span class="chip" id="status-chip">idle</span>
       </div>
       <button class="btn btn-clear" id="btn-clear" type="button" onclick="clearResults()">Clear</button>
@@ -791,6 +954,7 @@
   let totalMatchesFound = 0;
   let searchQuery = '';
   let currentEngine = 'native';
+  let fixFilterEnabled = true;
   let isRunning = false;
   let isPaused = false;
   let isStopping = false;
@@ -800,6 +964,8 @@
   let pageContextVersion = 0;
   let pageRequestSerial = 0;
   let speedTimer = null;
+  let filterMonitorTimer = null;
+  let filterMonitorInFlight = false;
   let lastCount = 0;
   let searchStartedAt = 0;
   let latestProgress = {
@@ -877,6 +1043,7 @@
     $('btn-export').disabled = totalMatchesFound === 0 || isRunning;
     $('btn-clear').disabled = isRunning;
     $('engine-select').disabled = isRunning;
+    $('fix-filter-toggle').disabled = isRunning;
     $('btn-pause').textContent = isPaused ? 'Resume' : 'Pause';
     $('btn-stop').textContent = isStopping ? 'Stopping...' : 'Stop';
   }
@@ -893,6 +1060,111 @@
     $('mode-chip').textContent = info.mode;
     $('engine-chip').textContent = `Engine: ${info.chip}`;
     $('engine-hint').textContent = info.hint;
+  }
+
+  function isFixFilterEnabled() {
+    return $('fix-filter-toggle').checked;
+  }
+
+  function syncFilterUI(enabled = isFixFilterEnabled(), outputDir = '') {
+    fixFilterEnabled = enabled;
+    $('fix-filter-toggle').checked = enabled;
+
+    const chip = $('pipeline-chip');
+    chip.textContent = enabled ? 'Fix+Rules: on' : 'Fix+Rules: off';
+    chip.className = 'chip';
+    if (enabled) {
+      chip.classList.add('active');
+    }
+
+    if (enabled) {
+      $('filter-output').textContent = outputDir
+        ? `Output dir: ${outputDir}`
+        : 'Fix + CMS filtering enabled. Output will be written during search.';
+    } else {
+      $('filter-output').textContent = 'Fix + CMS filtering disabled. Results are shown without CMS grouping output.';
+    }
+  }
+
+  function resetFilterMonitor(message) {
+    $('monitor-panels-chip').textContent = '0 Categories';
+    $('monitor-lines-chip').textContent = '0 Matched Lines';
+    $('monitor-output-path').textContent = fixFilterEnabled ? 'Filter output: --' : 'Filter output: disabled';
+    $('monitor-list').innerHTML = `<div class="monitor-empty">${message}</div>`;
+  }
+
+  function renderFilterMonitor(payload) {
+    const enabled = payload && payload.enabled !== false;
+    const items = Array.isArray(payload?.items) ? payload.items : [];
+    const totalPanels = payload?.total_panels || 0;
+    const totalLines = payload?.total_lines || 0;
+    const outputDir = payload?.output_dir || '';
+
+    $('monitor-panels-chip').textContent = `${totalPanels.toLocaleString()} Categories`;
+    $('monitor-lines-chip').textContent = `${totalLines.toLocaleString()} Matched Lines`;
+    $('monitor-output-path').textContent = enabled
+      ? `Filter output: ${outputDir || '--'}`
+      : 'Filter output: disabled';
+
+    if (!enabled) {
+      $('monitor-list').innerHTML = '<div class="monitor-empty">Fix + CMS filtering is disabled for this search.</div>';
+      return;
+    }
+
+    if (items.length === 0) {
+      $('monitor-list').innerHTML = '<div class="monitor-empty">No category matches yet. CMS, panel, and service hits will appear here in realtime.</div>';
+      return;
+    }
+
+    $('monitor-list').innerHTML = items.map((item) => `
+      <div class="monitor-card">
+        <div class="monitor-card-head">
+          <div>
+            <div class="monitor-card-name">${escapeHtml(item.cms_name || 'Unknown')}</div>
+            <div class="monitor-card-file">${escapeHtml(item.output_file || '--')}</div>
+          </div>
+          <div class="monitor-card-count">${Number(item.count || 0).toLocaleString()}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function fetchFilterMonitor() {
+    if (filterMonitorInFlight) return;
+    filterMonitorInFlight = true;
+
+    fetch('/filter-status')
+      .then((response) => {
+        if (!response.ok) throw new Error('Failed to load filter monitor.');
+        return response.json();
+      })
+      .then((payload) => {
+        renderFilterMonitor(payload);
+        if (payload && typeof payload.enabled === 'boolean') {
+          syncFilterUI(payload.enabled, payload.output_dir || '');
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        filterMonitorInFlight = false;
+      });
+  }
+
+  function stopFilterMonitorPolling() {
+    window.clearInterval(filterMonitorTimer);
+    filterMonitorTimer = null;
+    filterMonitorInFlight = false;
+  }
+
+  function startFilterMonitorPolling() {
+    stopFilterMonitorPolling();
+    if (!fixFilterEnabled) {
+      resetFilterMonitor('Fix + CMS filtering is disabled. Enable it to watch category counters in realtime.');
+      return;
+    }
+
+    fetchFilterMonitor();
+    filterMonitorTimer = window.setInterval(fetchFilterMonitor, 800);
   }
 
   function updateResultCount(count) {
@@ -1118,6 +1390,9 @@
     $('query-chip').textContent = searchQuery ? `Query: ${searchQuery}` : 'No active query';
     updateResultCount(0);
     updateFilterCountDisplay();
+    resetFilterMonitor(fixFilterEnabled
+      ? 'Search started. Waiting for CMS, panel, and service matches...'
+      : 'Fix + CMS filtering is disabled. Enable it to watch category counters in realtime.');
     renderPage();
   }
 
@@ -1145,7 +1420,9 @@
       return;
     }
     currentEngine = getSelectedEngine();
+    fixFilterEnabled = isFixFilterEnabled();
     syncEngineUI(currentEngine);
+    syncFilterUI(fixFilterEnabled);
 
     closeEventSource();
     isRunning = true;
@@ -1170,8 +1447,9 @@
     });
 
     startSpeedTimer();
+    startFilterMonitorPolling();
 
-    eventSource = new EventSource(`/search?query=${encodeURIComponent(searchQuery)}&engine=${encodeURIComponent(currentEngine)}`);
+    eventSource = new EventSource(`/search?query=${encodeURIComponent(searchQuery)}&engine=${encodeURIComponent(currentEngine)}&fix_filter=${fixFilterEnabled ? '1' : '0'}`);
     eventSource.onmessage = handleSSEMessage;
     eventSource.onerror = () => {
       if (!isRunning || isStopping) return;
@@ -1184,6 +1462,8 @@
     const payload = JSON.parse(event.data);
 
     if (payload.type === 'start') {
+      syncFilterUI(payload.fix_filter !== false, payload.output_dir || '');
+      startFilterMonitorPolling();
       updateProgress({
         processedBytes: payload.processed_bytes || 0,
         totalBytes: payload.total_bytes || latestProgress.totalBytes,
@@ -1258,6 +1538,7 @@
     isPaused = false;
     isStopping = false;
     stopSpeedTimer();
+    stopFilterMonitorPolling();
     closeEventSource();
 
     updateProgress({
@@ -1275,6 +1556,7 @@
     $('stat-speed').textContent = '0';
     setStatus('done');
     updateButtons();
+    fetchFilterMonitor();
     requestResultsPage(currentPage);
   }
 
@@ -1286,6 +1568,7 @@
     isPaused = false;
     isStopping = false;
     stopSpeedTimer();
+    stopFilterMonitorPolling();
     closeEventSource();
 
     updateProgress({
@@ -1303,6 +1586,7 @@
     $('stat-speed').textContent = '0';
     setStatus('idle');
     updateButtons();
+    fetchFilterMonitor();
     requestResultsPage(currentPage);
   }
 
@@ -1311,6 +1595,7 @@
     isPaused = false;
     isStopping = false;
     stopSpeedTimer();
+    stopFilterMonitorPolling();
     closeEventSource();
     $('progress-status').textContent = `Error: ${message}`;
     $('stat-speed').textContent = '0';
@@ -1379,6 +1664,10 @@
       totalFiles: latestProgress.totalFiles
     });
     setStatus('idle');
+    stopFilterMonitorPolling();
+    resetFilterMonitor(fixFilterEnabled
+      ? 'Fix + CMS filtering enabled. Start a new search to monitor matched categories here.'
+      : 'Fix + CMS filtering is disabled. Enable it to watch category counters in realtime.');
     updateButtons();
     renderPage();
   }
@@ -1425,7 +1714,17 @@
     syncEngineUI(getSelectedEngine());
   });
 
+  $('fix-filter-toggle').addEventListener('change', () => {
+    if (isRunning) return;
+    syncFilterUI(isFixFilterEnabled());
+    resetFilterMonitor(isFixFilterEnabled()
+      ? 'Fix + CMS filtering enabled. Start a search to monitor matched categories here.'
+      : 'Fix + CMS filtering is disabled. Enable it to watch category counters in realtime.');
+  });
+
   syncEngineUI('native');
+  syncFilterUI(true);
+  resetFilterMonitor('Fix + CMS filtering enabled by default. Start a search to monitor matched categories here.');
   updateButtons();
   setStatus('idle');
   renderPage();

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -34,6 +36,8 @@ const (
 	maxStoredLineRunes   = 4096
 	resultSnippetPadding = 256
 	resultEventCountStep = 100
+	defaultFilterDir     = "filter"
+	randomIDLength       = 5
 	engineNative         = "native"
 	engineUgrep          = "ugrep"
 	engineHybrid         = "hybrid"
@@ -50,15 +54,18 @@ var (
 )
 
 type SearchState struct {
-	mu        sync.Mutex
-	pauseCond *sync.Cond
-	paused    atomic.Bool
-	cancelled atomic.Bool
-	running   atomic.Bool
-	query     string
-	engine    string
-	results   []string
-	cancel    context.CancelFunc
+	mu          sync.Mutex
+	pauseCond   *sync.Cond
+	paused      atomic.Bool
+	cancelled   atomic.Bool
+	running     atomic.Bool
+	query       string
+	engine      string
+	fixFilter   bool
+	outputDir   string
+	filterStats map[string]FilterPanelStat
+	results     []string
+	cancel      context.CancelFunc
 }
 
 func newSearchState() *SearchState {
@@ -110,6 +117,9 @@ type SSEEvent struct {
 	SpeedBytes     float64 `json:"speed_bytes"`
 	FilesDone      int     `json:"files_done"`
 	TotalFiles     int     `json:"total_files"`
+	Engine         string  `json:"engine,omitempty"`
+	FixFilter      bool    `json:"fix_filter"`
+	OutputDir      string  `json:"output_dir,omitempty"`
 }
 
 type ResultsPageResponse struct {
@@ -125,11 +135,57 @@ type SearchBatch struct {
 	TotalBytes int64
 }
 
+type FilterPanelStat struct {
+	CMSName    string `json:"cms_name"`
+	OutputFile string `json:"output_file"`
+	Count      int    `json:"count"`
+}
+
+type FilterStatusResponse struct {
+	Enabled     bool              `json:"enabled"`
+	OutputDir   string            `json:"output_dir"`
+	TotalPanels int               `json:"total_panels"`
+	TotalLines  int               `json:"total_lines"`
+	Query       string            `json:"query"`
+	Items       []FilterPanelStat `json:"items"`
+}
+
+type CMSRule struct {
+	CMSName       string   `json:"cmsName"`
+	OutputFile    string   `json:"outputFIle"`
+	Pattern       []string `json:"pattern"`
+	IsRegex       bool     `json:"isRegex"`
+	compiledRegex []*regexp.Regexp
+	plainPatterns []string
+}
+
+type SearchPipeline struct {
+	rules     []CMSRule
+	writer    *FilterWriterManager
+	outputDir string
+}
+
+type FilterWriterManager struct {
+	baseDir string
+	files   map[string]*searchOutputFile
+	seen    map[string]map[string]struct{}
+}
+
+type searchOutputFile struct {
+	file      *os.File
+	writer    *bufio.Writer
+	pending   int
+	lastFlush time.Time
+}
+
 var (
-	state       = newSearchState()
-	statsOnce   sync.Once
-	cachedStats DirectoryStats
-	statsErr    error
+	state          = newSearchState()
+	statsOnce      sync.Once
+	cachedStats    DirectoryStats
+	statsErr       error
+	cmsRulesOnce   sync.Once
+	cachedCMSRules []CMSRule
+	cmsRulesErr    error
 )
 
 func enableCORS(w http.ResponseWriter) {
@@ -151,6 +207,205 @@ func getDirectoryStats() (DirectoryStats, error) {
 		cachedStats, statsErr = buildDirectoryStats(defaultDirectory)
 	})
 	return cachedStats, statsErr
+}
+
+func getCMSRules() ([]CMSRule, error) {
+	cmsRulesOnce.Do(func() {
+		cachedCMSRules, cmsRulesErr = loadCMSRules(filepath.Join(".", "rules.json"))
+	})
+	return cachedCMSRules, cmsRulesErr
+}
+
+func loadCMSRules(path string) ([]CMSRule, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read rules file: %w", err)
+	}
+
+	var rules []CMSRule
+	if err := json.Unmarshal(content, &rules); err != nil {
+		return nil, fmt.Errorf("failed to parse rules file: %w", err)
+	}
+
+	for i := range rules {
+		rules[i].plainPatterns = buildRulePatterns(rules[i].Pattern)
+		if !rules[i].IsRegex {
+			continue
+		}
+
+		for _, pattern := range rules[i].Pattern {
+			regexPattern := pattern
+			if !strings.HasPrefix(regexPattern, "(?i)") {
+				regexPattern = "(?i)" + regexPattern
+			}
+			compiled, err := regexp.Compile(regexPattern)
+			if err != nil {
+				log.Printf("skipping invalid regex %q for rule %q: %v", pattern, rules[i].CMSName, err)
+				continue
+			}
+			rules[i].compiledRegex = append(rules[i].compiledRegex, compiled)
+		}
+	}
+
+	return rules, nil
+}
+
+func buildRulePatterns(patterns []string) []string {
+	seen := make(map[string]struct{}, len(patterns)*4)
+	normalized := make([]string, 0, len(patterns)*4)
+
+	add := func(pattern string) {
+		pattern = strings.TrimSpace(strings.ToLower(pattern))
+		if pattern == "" {
+			return
+		}
+		if _, ok := seen[pattern]; ok {
+			return
+		}
+		seen[pattern] = struct{}{}
+		normalized = append(normalized, pattern)
+	}
+
+	for _, pattern := range patterns {
+		lower := strings.ToLower(pattern)
+		add(lower)
+		add(strings.ReplaceAll(lower, ":", "|"))
+		add(strings.ReplaceAll(lower, " ", ""))
+		add(strings.ReplaceAll(strings.ReplaceAll(lower, ":", "|"), " ", ""))
+	}
+
+	return normalized
+}
+
+func newSearchPipeline(query string, rules []CMSRule) (*SearchPipeline, error) {
+	randomID, err := randomString(randomIDLength)
+	if err != nil {
+		return nil, err
+	}
+
+	outputDir := filepath.Join(defaultFilterDir, sanitizeFilename(query)+"-"+randomID)
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return nil, fmt.Errorf("failed to create filter output directory: %w", err)
+	}
+
+	return &SearchPipeline{
+		rules:     rules,
+		writer:    newFilterWriterManager(outputDir),
+		outputDir: outputDir,
+	}, nil
+}
+
+func (p *SearchPipeline) Process(line string) (string, *CMSRule, bool, error) {
+	if p == nil {
+		return line, nil, true, nil
+	}
+
+	fixed := fixSearchResultLine(line)
+	if fixed == "" {
+		return "", nil, false, nil
+	}
+
+	rule := matchCMSRule(p.rules, fixed)
+	if rule == nil {
+		return "", nil, false, nil
+	}
+
+	wrote, err := p.writer.Write(rule.OutputFile, fixed)
+	if err != nil {
+		return "", nil, false, err
+	}
+	if !wrote {
+		return "", nil, false, nil
+	}
+
+	return fixed, rule, true, nil
+}
+
+func (p *SearchPipeline) Close() error {
+	if p == nil || p.writer == nil {
+		return nil
+	}
+	return p.writer.Close()
+}
+
+func newFilterWriterManager(baseDir string) *FilterWriterManager {
+	return &FilterWriterManager{
+		baseDir: baseDir,
+		files:   make(map[string]*searchOutputFile),
+		seen:    make(map[string]map[string]struct{}),
+	}
+}
+
+func (m *FilterWriterManager) Write(relativePath, line string) (bool, error) {
+	cleanRelativePath, err := sanitizeRelativeOutputPath(relativePath)
+	if err != nil {
+		return false, err
+	}
+
+	fullPath := filepath.Join(m.baseDir, cleanRelativePath)
+	seenForFile := m.seen[fullPath]
+	if seenForFile == nil {
+		seenForFile = make(map[string]struct{})
+		m.seen[fullPath] = seenForFile
+	}
+	if _, exists := seenForFile[line]; exists {
+		return false, nil
+	}
+	seenForFile[line] = struct{}{}
+
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+		return false, fmt.Errorf("failed to prepare output directory: %w", err)
+	}
+
+	handle := m.files[fullPath]
+	if handle == nil {
+		file, err := os.OpenFile(fullPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+		if err != nil {
+			return false, fmt.Errorf("failed to open output file %s: %w", fullPath, err)
+		}
+		handle = &searchOutputFile{
+			file:      file,
+			writer:    bufio.NewWriterSize(file, 1<<20),
+			lastFlush: time.Now(),
+		}
+		m.files[fullPath] = handle
+	}
+
+	if _, err := handle.writer.WriteString(line + "\n"); err != nil {
+		return false, fmt.Errorf("failed to write output file %s: %w", fullPath, err)
+	}
+
+	handle.pending++
+	if handle.pending >= 128 || time.Since(handle.lastFlush) >= time.Second {
+		if err := handle.writer.Flush(); err != nil {
+			return false, fmt.Errorf("failed to flush output file %s: %w", fullPath, err)
+		}
+		handle.pending = 0
+		handle.lastFlush = time.Now()
+	}
+
+	return true, nil
+}
+
+func (m *FilterWriterManager) Close() error {
+	if m == nil {
+		return nil
+	}
+
+	var closeErr error
+	for path, handle := range m.files {
+		if handle.writer != nil {
+			if err := handle.writer.Flush(); err != nil && closeErr == nil {
+				closeErr = fmt.Errorf("failed to flush output file %s: %w", path, err)
+			}
+		}
+		if handle.file != nil {
+			if err := handle.file.Close(); err != nil && closeErr == nil {
+				closeErr = fmt.Errorf("failed to close output file %s: %w", path, err)
+			}
+		}
+	}
+	return closeErr
 }
 
 func buildDirectoryStats(directory string) (DirectoryStats, error) {
@@ -340,6 +595,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid engine", http.StatusBadRequest)
 		return
 	}
+	fixFilterEnabled := parseFeatureToggle(r.URL.Query().Get("fix_filter"))
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -352,6 +608,28 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 			sendSSE(w, SSEEvent{Type: "error", Data: "ugrep binary not found on server"})
 			return
 		}
+	}
+
+	var pipeline *SearchPipeline
+	outputDir := ""
+	if fixFilterEnabled {
+		rules, err := getCMSRules()
+		if err != nil {
+			sendSSE(w, SSEEvent{Type: "error", Data: err.Error()})
+			return
+		}
+
+		pipeline, err = newSearchPipeline(query, rules)
+		if err != nil {
+			sendSSE(w, SSEEvent{Type: "error", Data: err.Error()})
+			return
+		}
+		outputDir = pipeline.outputDir
+		defer func() {
+			if err := pipeline.Close(); err != nil {
+				log.Printf("failed to finalize filter output: %v", err)
+			}
+		}()
 	}
 
 	stats, err := getDirectoryStats()
@@ -373,6 +651,9 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	state.cancelled.Store(false)
 	state.query = query
 	state.engine = engine
+	state.fixFilter = fixFilterEnabled
+	state.outputDir = outputDir
+	state.filterStats = make(map[string]FilterPanelStat)
 	state.results = state.results[:0]
 	state.cancel = cancel
 	state.mu.Unlock()
@@ -400,6 +681,9 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		Data:       fmt.Sprintf("[%s] searching for %q", engine, query),
 		TotalBytes: stats.TotalSizeBytes,
 		TotalFiles: stats.TotalLogs,
+		Engine:     engine,
+		FixFilter:  fixFilterEnabled,
+		OutputDir:  outputDir,
 	})
 
 	if stats.TotalLogs == 0 {
@@ -431,6 +715,27 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				resultCh = nil
 				continue
+			}
+
+			if pipeline != nil {
+				processedLine, matchedRule, keep, err := pipeline.Process(line)
+				if err != nil {
+					sendSSE(w, SSEEvent{Type: "error", Data: err.Error()})
+					return
+				}
+				if !keep {
+					continue
+				}
+				line = processedLine
+				if matchedRule != nil {
+					state.mu.Lock()
+					stat := state.filterStats[matchedRule.OutputFile]
+					stat.CMSName = matchedRule.CMSName
+					stat.OutputFile = matchedRule.OutputFile
+					stat.Count++
+					state.filterStats[matchedRule.OutputFile] = stat
+					state.mu.Unlock()
+				}
 			}
 
 			matchCount++
@@ -1075,14 +1380,60 @@ func statusHandler(w http.ResponseWriter, r *http.Request) {
 	enableCORS(w)
 	state.mu.Lock()
 	count := len(state.results)
+	engine := state.engine
+	fixFilter := state.fixFilter
+	outputDir := state.outputDir
 	state.mu.Unlock()
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"running":   state.running.Load(),
-		"paused":    state.paused.Load(),
-		"cancelled": state.cancelled.Load(),
-		"count":     count,
-		"directory": defaultDirectory,
+		"running":    state.running.Load(),
+		"paused":     state.paused.Load(),
+		"cancelled":  state.cancelled.Load(),
+		"count":      count,
+		"directory":  defaultDirectory,
+		"engine":     engine,
+		"fix_filter": fixFilter,
+		"output_dir": outputDir,
+	})
+}
+
+func filterStatusHandler(w http.ResponseWriter, r *http.Request) {
+	enableCORS(w)
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	state.mu.Lock()
+	enabled := state.fixFilter
+	outputDir := state.outputDir
+	query := state.query
+	items := make([]FilterPanelStat, 0, len(state.filterStats))
+	totalLines := 0
+	for _, stat := range state.filterStats {
+		items = append(items, stat)
+		totalLines += stat.Count
+	}
+	state.mu.Unlock()
+
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].Count == items[j].Count {
+			if items[i].CMSName == items[j].CMSName {
+				return items[i].OutputFile < items[j].OutputFile
+			}
+			return items[i].CMSName < items[j].CMSName
+		}
+		return items[i].Count > items[j].Count
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(FilterStatusResponse{
+		Enabled:     enabled,
+		OutputDir:   outputDir,
+		TotalPanels: len(items),
+		TotalLines:  totalLines,
+		Query:       query,
+		Items:       items,
 	})
 }
 
@@ -1114,6 +1465,17 @@ func normalizeEngine(raw string) string {
 		return engineHybrid
 	default:
 		return ""
+	}
+}
+
+func parseFeatureToggle(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", "1", "true", "yes", "on", "enable", "enabled":
+		return true
+	case "0", "false", "no", "off", "disable", "disabled":
+		return false
+	default:
+		return true
 	}
 }
 
@@ -1150,12 +1512,132 @@ func sanitizeFilename(input string) string {
 	return name
 }
 
+func sanitizeRelativeOutputPath(input string) (string, error) {
+	cleaned := filepath.Clean(strings.TrimSpace(input))
+	cleaned = strings.TrimLeft(cleaned, `/\`)
+	switch {
+	case cleaned == "", cleaned == ".", strings.HasPrefix(cleaned, ".."):
+		return "", fmt.Errorf("invalid output path: %q", input)
+	default:
+		return cleaned, nil
+	}
+}
+
+func fixSearchResultLine(line string) string {
+	cleaned := strings.TrimSpace(strings.ToValidUTF8(line, ""))
+	if cleaned == "" {
+		return ""
+	}
+
+	cleaned = strings.NewReplacer(
+		"\r", "",
+		"\n", "",
+		"\t", "",
+		" ", "",
+	).Replace(cleaned)
+	if cleaned == "" {
+		return ""
+	}
+
+	lower := strings.ToLower(cleaned)
+	domainAtStart := false
+	if match := domainPattern.FindStringIndex(cleaned); match != nil && match[0] == 0 {
+		domainAtStart = true
+	}
+	if !strings.HasPrefix(lower, "https://") &&
+		!strings.HasPrefix(lower, "http://") &&
+		!strings.HasPrefix(lower, "ftp://") &&
+		!strings.HasPrefix(lower, "sftp://") &&
+		domainAtStart {
+		switch {
+		case strings.HasPrefix(lower, "ftp."):
+			cleaned = "ftp://" + cleaned
+		case strings.HasPrefix(lower, "sftp."):
+			cleaned = "sftp://" + cleaned
+		default:
+			cleaned = "https://" + cleaned
+		}
+	}
+
+	cleaned = strings.NewReplacer(
+		"https://https://", "https://",
+		"http://http://", "http://",
+		"https://http://", "https://",
+		"http://https://", "http://",
+		"ftp://ftp://", "ftp://",
+		"sftp://sftp://", "sftp://",
+	).Replace(cleaned)
+
+	cleaned = strings.ReplaceAll(cleaned, ":", "|")
+	cleaned = strings.NewReplacer(
+		"https|//", "https://",
+		"http|//", "http://",
+		"ftp|//", "ftp://",
+		"sftp|//", "sftp://",
+	).Replace(cleaned)
+
+	cleaned = strings.NewReplacer(
+		"https://https://", "https://",
+		"http://http://", "http://",
+		"ftp://ftp://", "ftp://",
+		"sftp://sftp://", "sftp://",
+	).Replace(cleaned)
+
+	return strings.TrimSpace(cleaned)
+}
+
+func matchCMSRule(rules []CMSRule, line string) *CMSRule {
+	lowerLine := strings.ToLower(line)
+	compactLine := strings.ReplaceAll(lowerLine, " ", "")
+
+	for i := range rules {
+		rule := &rules[i]
+		if rule.IsRegex {
+			for _, compiled := range rule.compiledRegex {
+				if compiled.MatchString(line) {
+					return rule
+				}
+			}
+		}
+
+		for _, pattern := range rule.plainPatterns {
+			if pattern == "" {
+				continue
+			}
+			if strings.Contains(lowerLine, pattern) || strings.Contains(compactLine, pattern) {
+				return rule
+			}
+		}
+	}
+
+	return nil
+}
+
 func isExpectedUgrepExit(err error) bool {
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) {
 		return false
 	}
 	return exitErr.ExitCode() == 1
+}
+
+func randomString(length int) (string, error) {
+	if length <= 0 {
+		return "", nil
+	}
+
+	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
+	randomBytes := make([]byte, length)
+	if _, err := rand.Read(randomBytes); err != nil {
+		return "", fmt.Errorf("failed to generate random id: %w", err)
+	}
+
+	result := make([]byte, length)
+	for i, value := range randomBytes {
+		result[i] = charset[int(value)%len(charset)]
+	}
+
+	return string(result), nil
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
@@ -1295,6 +1777,7 @@ func main() {
 	http.HandleFunc("/results", resultsHandler)
 	http.HandleFunc("/status", statusHandler)
 	http.HandleFunc("/stats", statsHandler)
+	http.HandleFunc("/filter-status", filterStatusHandler)
 
 	log.Printf("server running at http://localhost:%s", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
