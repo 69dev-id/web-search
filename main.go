@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -12,6 +13,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -31,6 +33,14 @@ const (
 	maxPageSize          = 500
 	maxStoredLineRunes   = 4096
 	resultSnippetPadding = 256
+	resultEventCountStep = 100
+	engineNative         = "native"
+	engineUgrep          = "ugrep"
+	engineHybrid         = "hybrid"
+	ugrepThreads         = "32"
+	maxUgrepBatchFiles   = 256
+	maxUgrepBatchBytes   = 16 << 30
+	maxUgrepCommandChars = 28000
 )
 
 var (
@@ -46,6 +56,7 @@ type SearchState struct {
 	cancelled atomic.Bool
 	running   atomic.Bool
 	query     string
+	engine    string
 	results   []string
 	cancel    context.CancelFunc
 }
@@ -107,6 +118,11 @@ type ResultsPageResponse struct {
 	PageSize   int      `json:"page_size"`
 	TotalCount int      `json:"total_count"`
 	TotalPages int      `json:"total_pages"`
+}
+
+type SearchBatch struct {
+	Files      []FileMeta
+	TotalBytes int64
 }
 
 var (
@@ -319,12 +335,24 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "query required", http.StatusBadRequest)
 		return
 	}
+	engine := normalizeEngine(r.URL.Query().Get("engine"))
+	if engine == "" {
+		http.Error(w, "invalid engine", http.StatusBadRequest)
+		return
+	}
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 	enableCORS(w)
+
+	if engine != engineNative {
+		if _, err := exec.LookPath("ugrep"); err != nil {
+			sendSSE(w, SSEEvent{Type: "error", Data: "ugrep binary not found on server"})
+			return
+		}
+	}
 
 	stats, err := getDirectoryStats()
 	if err != nil {
@@ -344,6 +372,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	state.paused.Store(false)
 	state.cancelled.Store(false)
 	state.query = query
+	state.engine = engine
 	state.results = state.results[:0]
 	state.cancel = cancel
 	state.mu.Unlock()
@@ -368,7 +397,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 	sendSSE(w, SSEEvent{
 		Type:       "start",
-		Data:       fmt.Sprintf("searching for %q", query),
+		Data:       fmt.Sprintf("[%s] searching for %q", engine, query),
 		TotalBytes: stats.TotalSizeBytes,
 		TotalFiles: stats.TotalLogs,
 	})
@@ -378,51 +407,26 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fileCh := make(chan FileMeta, minInt(stats.TotalLogs, maxInt(2, runtime.NumCPU()*2)))
 	resultCh := make(chan string, 256)
+	errCh := make(chan error, 1)
 
 	var processedBytes int64
 	var filesDone int64
-	var wg sync.WaitGroup
-
-	workerCount := minInt(runtime.NumCPU(), stats.TotalLogs)
-	if workerCount < 1 {
-		workerCount = 1
-	}
-
 	lowerQuery := strings.ToLower(query)
-
-	for i := 0; i < workerCount; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			searchWorker(ctx, lowerQuery, fileCh, resultCh, &processedBytes, &filesDone)
-		}()
-	}
-
-	go func() {
-		defer close(fileCh)
-		for _, file := range stats.Files {
-			select {
-			case <-ctx.Done():
-				return
-			case fileCh <- file:
-			}
-		}
-	}()
-
-	go func() {
-		wg.Wait()
-		close(resultCh)
-	}()
+	startSearchEngine(ctx, engine, query, lowerQuery, stats.Files, resultCh, errCh, &processedBytes, &filesDone)
 
 	progressTicker := time.NewTicker(300 * time.Millisecond)
 	defer progressTicker.Stop()
 
 	matchCount := 0
+	lastResultCount := 0
+	lastResultEventAt := time.Now()
 
 	for resultCh != nil {
 		select {
+		case err := <-errCh:
+			sendSSE(w, SSEEvent{Type: "error", Data: err.Error()})
+			return
 		case line, ok := <-resultCh:
 			if !ok {
 				resultCh = nil
@@ -433,6 +437,16 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 			state.mu.Lock()
 			state.results = append(state.results, line)
 			state.mu.Unlock()
+
+			if matchCount == 1 || matchCount-lastResultCount >= resultEventCountStep || time.Since(lastResultEventAt) >= 150*time.Millisecond {
+				sendSSE(w, SSEEvent{
+					Type:    "result",
+					Count:   matchCount,
+					Elapsed: time.Since(startTime).Round(time.Millisecond).String(),
+				})
+				lastResultCount = matchCount
+				lastResultEventAt = time.Now()
+			}
 
 		case <-progressTicker.C:
 			sendSSE(w, buildProgressEvent(
@@ -472,6 +486,192 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		stats.TotalLogs,
 		stats.TotalLogs,
 	))
+}
+
+func startSearchEngine(ctx context.Context, engine, query, lowerQuery string, files []FileMeta, resultCh chan string, errCh chan error, processedBytes *int64, filesDone *int64) {
+	switch engine {
+	case engineNative:
+		startNativeWorkers(ctx, lowerQuery, files, resultCh, processedBytes, filesDone)
+	case engineUgrep:
+		go runUgrepBatches(ctx, query, lowerQuery, files, resultCh, errCh, processedBytes, filesDone, false)
+	case engineHybrid:
+		go runUgrepBatches(ctx, query, lowerQuery, files, resultCh, errCh, processedBytes, filesDone, true)
+	default:
+		go func() {
+			defer close(resultCh)
+			select {
+			case errCh <- fmt.Errorf("unsupported engine: %s", engine):
+			default:
+			}
+		}()
+	}
+}
+
+func startNativeWorkers(ctx context.Context, lowerQuery string, files []FileMeta, resultCh chan string, processedBytes *int64, filesDone *int64) {
+	fileCh := make(chan FileMeta, minInt(len(files), maxInt(2, runtime.NumCPU()*2)))
+	var wg sync.WaitGroup
+
+	workerCount := minInt(runtime.NumCPU(), len(files))
+	if workerCount < 1 {
+		workerCount = 1
+	}
+
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			searchWorker(ctx, lowerQuery, fileCh, resultCh, processedBytes, filesDone)
+		}()
+	}
+
+	go func() {
+		defer close(fileCh)
+		for _, file := range files {
+			select {
+			case <-ctx.Done():
+				return
+			case fileCh <- file:
+			}
+		}
+	}()
+
+	go func() {
+		wg.Wait()
+		close(resultCh)
+	}()
+}
+
+func runUgrepBatches(ctx context.Context, query, lowerQuery string, files []FileMeta, resultCh chan string, errCh chan error, processedBytes *int64, filesDone *int64, hybrid bool) {
+	defer close(resultCh)
+
+	batches := buildUgrepBatches(files)
+	for _, batch := range batches {
+		if ctx.Err() != nil || state.cancelled.Load() {
+			return
+		}
+		if !state.waitIfPaused(ctx) {
+			return
+		}
+		if err := runUgrepBatch(ctx, query, lowerQuery, batch, resultCh, hybrid); err != nil {
+			select {
+			case errCh <- err:
+			default:
+			}
+			return
+		}
+		atomic.AddInt64(processedBytes, batch.TotalBytes)
+		atomic.AddInt64(filesDone, int64(len(batch.Files)))
+	}
+}
+
+func buildUgrepBatches(files []FileMeta) []SearchBatch {
+	batches := make([]SearchBatch, 0, 64)
+	current := SearchBatch{
+		Files: make([]FileMeta, 0, maxUgrepBatchFiles),
+	}
+	currentChars := 128
+
+	flush := func() {
+		if len(current.Files) == 0 {
+			return
+		}
+		batches = append(batches, current)
+		current = SearchBatch{
+			Files: make([]FileMeta, 0, maxUgrepBatchFiles),
+		}
+		currentChars = 128
+	}
+
+	for _, file := range files {
+		nextChars := currentChars + len(file.Path) + 1
+		if len(current.Files) > 0 && (len(current.Files) >= maxUgrepBatchFiles || current.TotalBytes+file.Size > maxUgrepBatchBytes || nextChars > maxUgrepCommandChars) {
+			flush()
+		}
+
+		current.Files = append(current.Files, file)
+		current.TotalBytes += file.Size
+		currentChars += len(file.Path) + 1
+	}
+
+	flush()
+	return batches
+}
+
+func runUgrepBatch(ctx context.Context, query, lowerQuery string, batch SearchBatch, resultCh chan<- string, hybrid bool) error {
+	args := []string{
+		"-F",
+		"-i",
+		"-I",
+		"-J", ugrepThreads,
+		"--no-filename",
+		"--no-messages",
+		query,
+	}
+	for _, file := range batch.Files {
+		args = append(args, file.Path)
+	}
+
+	cmd := exec.CommandContext(ctx, "ugrep", args...)
+	cmd.Stderr = io.Discard
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("failed to open ugrep stdout: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start ugrep (engine=%s): %w", engineUgrep, err)
+	}
+
+	reader := bufio.NewReaderSize(stdout, 1<<20)
+	for {
+		rawLine, readErr := reader.ReadBytes('\n')
+		if len(rawLine) > 0 {
+			if ctx.Err() != nil || state.cancelled.Load() {
+				_ = cmd.Wait()
+				return nil
+			}
+			if !state.waitIfPaused(ctx) {
+				_ = cmd.Wait()
+				return nil
+			}
+
+			line := strings.TrimRight(strings.ToValidUTF8(string(rawLine), " "), "\r\n")
+			var output string
+			if hybrid {
+				normalized, ok := normalizeMatchedLine([]byte(line), lowerQuery)
+				if !ok {
+					goto nextLine
+				}
+				output = normalized
+			} else {
+				output = sanitizeDisplayLine(line)
+				if output == "" {
+					goto nextLine
+				}
+			}
+
+			select {
+			case <-ctx.Done():
+				_ = cmd.Wait()
+				return nil
+			case resultCh <- output:
+			}
+		}
+	nextLine:
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			_ = cmd.Wait()
+			return fmt.Errorf("ugrep read failed: %w", readErr)
+		}
+	}
+
+	if err := cmd.Wait(); err != nil && ctx.Err() == nil && !state.cancelled.Load() && !isExpectedUgrepExit(err) {
+		return fmt.Errorf("ugrep wait failed: %w", err)
+	}
+
+	return nil
 }
 
 func searchWorker(ctx context.Context, lowerQuery string, fileCh <-chan FileMeta, resultCh chan<- string, processedBytes *int64, filesDone *int64) {
@@ -600,6 +800,55 @@ func normalizeMatchedLine(rawLine []byte, lowerQuery string) (string, bool) {
 	}
 
 	return normalized, true
+}
+
+func sanitizeDisplayLine(rawLine string) string {
+	line := strings.TrimRight(strings.ToValidUTF8(rawLine, " "), "\r\n")
+	if line == "" {
+		return ""
+	}
+
+	var builder strings.Builder
+	builder.Grow(minInt(len(line), maxStoredLineRunes))
+
+	lastWasSpace := false
+	for _, r := range line {
+		switch {
+		case r == '\r' || r == '\n' || r == '\t':
+			if !lastWasSpace && builder.Len() > 0 {
+				builder.WriteByte(' ')
+				lastWasSpace = true
+			}
+		case unicode.IsSpace(r):
+			if !lastWasSpace && builder.Len() > 0 {
+				builder.WriteByte(' ')
+				lastWasSpace = true
+			}
+		case !unicode.IsGraphic(r):
+			if !lastWasSpace && builder.Len() > 0 {
+				builder.WriteByte(' ')
+				lastWasSpace = true
+			}
+		default:
+			builder.WriteRune(r)
+			lastWasSpace = false
+		}
+	}
+
+	cleaned := strings.TrimSpace(builder.String())
+	if cleaned == "" || !containsRelevantToken(cleaned) {
+		return ""
+	}
+
+	cleaned = extractRelevantSegment(cleaned)
+	if cleaned == "" {
+		return ""
+	}
+	if len([]rune(cleaned)) > maxStoredLineRunes {
+		cleaned = shrinkResultLine(cleaned, "")
+	}
+
+	return cleaned
 }
 
 func containsRelevantToken(line string) bool {
@@ -855,6 +1104,19 @@ func parsePageParams(r *http.Request) (int, int) {
 	return page, pageSize
 }
 
+func normalizeEngine(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", engineNative:
+		return engineNative
+	case engineUgrep:
+		return engineUgrep
+	case engineHybrid:
+		return engineHybrid
+	default:
+		return ""
+	}
+}
+
 func sanitizeFilename(input string) string {
 	input = strings.TrimSpace(input)
 	if input == "" {
@@ -886,6 +1148,14 @@ func sanitizeFilename(input string) string {
 	}
 
 	return name
+}
+
+func isExpectedUgrepExit(err error) bool {
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		return false
+	}
+	return exitErr.ExitCode() == 1
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {

@@ -192,6 +192,21 @@
     flex: 1 1 480px;
   }
 
+  .engine-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 184px;
+  }
+
+  .engine-label {
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
   .search-icon {
     position: absolute;
     left: 15px;
@@ -202,6 +217,7 @@
   }
 
   .search-input,
+  .engine-select,
   .filter-input,
   .page-input {
     width: 100%;
@@ -219,7 +235,15 @@
     font-size: 14px;
   }
 
+  .engine-select {
+    padding: 14px 16px;
+    font-size: 13px;
+    appearance: none;
+    cursor: pointer;
+  }
+
   .search-input:focus,
+  .engine-select:focus,
   .filter-input:focus,
   .page-input:focus {
     border-color: rgba(71, 198, 255, 0.5);
@@ -256,6 +280,12 @@
     background: rgba(71, 198, 255, 0.1);
     border-color: rgba(71, 198, 255, 0.18);
     color: var(--cyan);
+  }
+
+  .engine-hint {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--muted);
   }
 
   .progress-shell {
@@ -577,7 +607,7 @@
       <h1>Leak Search Console</h1>
       <p>Fast TXT log search with live progress, ETA, and server-locked directory scan.</p>
     </div>
-    <div class="mode-chip">Current Mode: Web Search</div>
+    <div class="mode-chip" id="mode-chip">Current Engine: Native</div>
   </header>
 
   <section class="stats-grid">
@@ -650,6 +680,14 @@
         <span class="search-icon">⌕</span>
         <input class="search-input" id="query-input" type="text" placeholder="Enter keyword or domain, e.g. ollama.com" autocomplete="off">
       </div>
+      <div class="engine-wrap">
+        <label class="engine-label" for="engine-select">Search Engine</label>
+        <select class="engine-select" id="engine-select">
+          <option value="native" selected>Native</option>
+          <option value="ugrep">ugrep (-J 32)</option>
+          <option value="hybrid">Hybrid (ugrep + filter)</option>
+        </select>
+      </div>
       <div class="button-row">
         <button class="btn btn-start" id="btn-start" type="button" onclick="startSearch()">Start Search</button>
         <button class="btn btn-pause" id="btn-pause" type="button" onclick="togglePause()" disabled>Pause</button>
@@ -657,6 +695,7 @@
         <button class="btn btn-export" id="btn-export" type="button" onclick="exportResults()" disabled>Export</button>
       </div>
     </div>
+    <div class="engine-hint" id="engine-hint">Native: exact byte progress + ETA, with the strictest line cleanup and filtering.</div>
 
     <div class="progress-shell">
       <div class="progress-top">
@@ -679,6 +718,7 @@
         <span class="section-title">Results</span>
         <span class="chip" id="results-badge">0 Found</span>
         <span class="chip query" id="query-chip">No active query</span>
+        <span class="chip" id="engine-chip">Engine: native</span>
         <span class="chip" id="status-chip">idle</span>
       </div>
       <button class="btn btn-clear" id="btn-clear" type="button" onclick="clearResults()">Clear</button>
@@ -722,6 +762,26 @@
 <script>
   const PAGE_SIZE = 100;
   const MAX_PREVIEW_CHARS = 360;
+  const ENGINE_INFO = {
+    native: {
+      label: 'Native',
+      chip: 'native',
+      mode: 'Current Engine: Native',
+      hint: 'Native: exact byte progress + ETA, with the strictest line cleanup and filtering.'
+    },
+    ugrep: {
+      label: 'ugrep',
+      chip: 'ugrep',
+      mode: 'Current Engine: ugrep (-J 32)',
+      hint: 'ugrep: fastest raw search with -J 32. Progress and ETA are available, but approximate because ugrep does not expose exact byte progress.'
+    },
+    hybrid: {
+      label: 'Hybrid',
+      chip: 'hybrid',
+      mode: 'Current Engine: Hybrid (ugrep + filter)',
+      hint: 'Hybrid: ugrep -J 32 for speed, then backend cleanup/filtering like native. Progress and ETA are approximate.'
+    }
+  };
 
   let eventSource = null;
   let pageItems = [];
@@ -730,6 +790,7 @@
   let totalPages = 1;
   let totalMatchesFound = 0;
   let searchQuery = '';
+  let currentEngine = 'native';
   let isRunning = false;
   let isPaused = false;
   let isStopping = false;
@@ -815,8 +876,23 @@
     $('btn-stop').disabled = !isRunning || isStopping;
     $('btn-export').disabled = totalMatchesFound === 0 || isRunning;
     $('btn-clear').disabled = isRunning;
+    $('engine-select').disabled = isRunning;
     $('btn-pause').textContent = isPaused ? 'Resume' : 'Pause';
     $('btn-stop').textContent = isStopping ? 'Stopping...' : 'Stop';
+  }
+
+  function getSelectedEngine() {
+    const value = $('engine-select').value;
+    return ENGINE_INFO[value] ? value : 'native';
+  }
+
+  function syncEngineUI(engine = getSelectedEngine()) {
+    const info = ENGINE_INFO[engine] || ENGINE_INFO.native;
+    currentEngine = engine;
+    $('engine-select').value = engine;
+    $('mode-chip').textContent = info.mode;
+    $('engine-chip').textContent = `Engine: ${info.chip}`;
+    $('engine-hint').textContent = info.hint;
   }
 
   function updateResultCount(count) {
@@ -859,7 +935,9 @@
     if (latestProgress.totalFiles) {
       telemetry += ` · ${latestProgress.filesDone.toLocaleString()}/${latestProgress.totalFiles.toLocaleString()} files`;
     }
-    telemetry += ` · ETA ${latestProgress.eta || '--'}`;
+    const etaValue = latestProgress.eta || '--';
+    const etaPrefix = currentEngine === 'native' || etaValue === '--' || etaValue === '0s' || etaValue === 'stopped' ? '' : '~';
+    telemetry += ` · ETA ${etaPrefix}${etaValue}`;
     $('progress-telemetry').textContent = telemetry;
   }
 
@@ -1066,6 +1144,8 @@
       alert('Enter a search keyword first.');
       return;
     }
+    currentEngine = getSelectedEngine();
+    syncEngineUI(currentEngine);
 
     closeEventSource();
     isRunning = true;
@@ -1091,7 +1171,7 @@
 
     startSpeedTimer();
 
-    eventSource = new EventSource(`/search?query=${encodeURIComponent(searchQuery)}`);
+    eventSource = new EventSource(`/search?query=${encodeURIComponent(searchQuery)}&engine=${encodeURIComponent(currentEngine)}`);
     eventSource.onmessage = handleSSEMessage;
     eventSource.onerror = () => {
       if (!isRunning || isStopping) return;
@@ -1113,7 +1193,9 @@
         filesDone: payload.files_done || 0,
         totalFiles: payload.total_files || latestProgress.totalFiles
       });
-      $('progress-status').textContent = 'Scanning files...';
+      $('progress-status').textContent = currentEngine === 'native'
+        ? 'Scanning files...'
+        : `Scanning with ${ENGINE_INFO[currentEngine].label}...`;
       if (payload.total_files) $('stat-total-logs').textContent = payload.total_files.toLocaleString();
       requestResultsPage(1);
       return;
@@ -1130,7 +1212,9 @@
         totalFiles: payload.total_files
       });
       if (!isPaused) {
-        $('progress-status').textContent = `Scanning... ${payload.files_done.toLocaleString()}/${payload.total_files.toLocaleString()} files`;
+        $('progress-status').textContent = currentEngine === 'native'
+          ? `Scanning... ${payload.files_done.toLocaleString()}/${payload.total_files.toLocaleString()} files`
+          : `Scanning with ${ENGINE_INFO[currentEngine].label}... ${payload.files_done.toLocaleString()}/${payload.total_files.toLocaleString()} files`;
       }
       if (payload.elapsed) $('stat-elapsed').textContent = payload.elapsed;
       if (typeof payload.count === 'number') {
@@ -1241,7 +1325,9 @@
       .then((payload) => {
         isPaused = payload.status === 'paused';
         setStatus(isPaused ? 'paused' : 'running');
-        $('progress-status').textContent = isPaused ? 'Paused. Search workers are waiting.' : 'Scanning files...';
+        $('progress-status').textContent = isPaused
+          ? `Paused. ${ENGINE_INFO[currentEngine].label} workers are waiting.`
+          : (currentEngine === 'native' ? 'Scanning files...' : `Scanning with ${ENGINE_INFO[currentEngine].label}...`);
         updateButtons();
       })
       .catch(() => onSearchError('Failed to toggle pause.'));
@@ -1334,6 +1420,12 @@
     }
   });
 
+  $('engine-select').addEventListener('change', () => {
+    if (isRunning) return;
+    syncEngineUI(getSelectedEngine());
+  });
+
+  syncEngineUI('native');
   updateButtons();
   setStatus('idle');
   renderPage();
