@@ -45,6 +45,7 @@ type SearchState struct {
 	paused    atomic.Bool
 	cancelled atomic.Bool
 	running   atomic.Bool
+	query     string
 	results   []string
 	cancel    context.CancelFunc
 }
@@ -342,6 +343,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	state.running.Store(true)
 	state.paused.Store(false)
 	state.cancelled.Store(false)
+	state.query = query
 	state.results = state.results[:0]
 	state.cancel = cancel
 	state.mu.Unlock()
@@ -756,10 +758,11 @@ func exportHandler(w http.ResponseWriter, r *http.Request) {
 	enableCORS(w)
 	state.mu.Lock()
 	results := make([]string, len(state.results))
+	query := state.query
 	copy(results, state.results)
 	state.mu.Unlock()
 
-	filename := "hasil_pencarian_" + time.Now().Format("20060102_150405") + ".txt"
+	filename := sanitizeFilename(query) + "_" + time.Now().Format("20060102_150405") + ".txt"
 	w.Header().Set("Content-Disposition", "attachment; filename="+filename)
 	w.Header().Set("Content-Type", "text/plain")
 	for _, line := range results {
@@ -850,6 +853,39 @@ func parsePageParams(r *http.Request) (int, int) {
 	}
 
 	return page, pageSize
+}
+
+func sanitizeFilename(input string) string {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return "results"
+	}
+
+	var builder strings.Builder
+	lastUnderscore := false
+
+	for _, r := range input {
+		switch {
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			builder.WriteRune(unicode.ToLower(r))
+			lastUnderscore = false
+		case r == '.' || r == '-' || r == '_':
+			builder.WriteRune(r)
+			lastUnderscore = false
+		default:
+			if !lastUnderscore && builder.Len() > 0 {
+				builder.WriteByte('_')
+				lastUnderscore = true
+			}
+		}
+	}
+
+	name := strings.Trim(builder.String(), "._-")
+	if name == "" {
+		return "results"
+	}
+
+	return name
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {

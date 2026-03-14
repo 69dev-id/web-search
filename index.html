@@ -931,8 +931,11 @@
 
   function refreshVisiblePageIfNeeded() {
     const liveTotalPages = Math.max(1, Math.ceil(Math.max(totalMatchesFound, 1) / PAGE_SIZE));
+    const pageStartIndex = (currentPage - 1) * PAGE_SIZE;
+    const expectedItems = Math.max(0, Math.min(PAGE_SIZE, totalMatchesFound - pageStartIndex));
+    const pageNeedsFill = pageItems.length < expectedItems;
     totalPages = liveTotalPages;
-    if (currentPage === liveTotalPages || totalMatchesFound <= PAGE_SIZE) {
+    if (pageNeedsFill || currentPage === liveTotalPages) {
       schedulePageRefresh(currentPage);
     }
   }
