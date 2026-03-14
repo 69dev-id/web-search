@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ugrep Search</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --bg2: #13161e;
+    --bg3: #1a1e2a;
+    --border: #252a38;
+    --accent: #4ade80;
+    --accent2: #22d3ee;
+    --accent3: #f59e0b;
+    --red: #f87171;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-ui: 'Space Grotesk', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* TOP STATS BAR */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-bottom: 1px solid var(--border);
+  }
+  .stat-card {
+    padding: 18px 24px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .stat-card:last-child { border-right: none; }
+  .stat-icon {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .stat-info { display: flex; flex-direction: column; }
+  .stat-val {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+    transition: all 0.2s;
+  }
+  .stat-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-top: 3px;
+  }
+
+  /* SEARCH BAR */
+  .search-section {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .search-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .search-input-wrap {
+    flex: 1;
+    position: relative;
+  }
+  .search-input {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 16px 11px 40px;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-input:focus { border-color: var(--accent); }
+  .search-input::placeholder { color: var(--muted); }
+  .search-icon {
+    position: absolute;
+    left: 12px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 16px;
+    pointer-events: none;
+  }
+  .dir-input {
+    width: 280px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 14px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .dir-input:focus { border-color: var(--accent2); }
+  .max-input {
+    width: 110px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 14px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+  }
+
+  /* BUTTONS */
+  .btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 7px;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-start { background: var(--accent); color: #0d0f14; }
+  .btn-start:hover:not(:disabled) { background: #86efac; }
+  .btn-pause { background: var(--bg3); border: 1px solid var(--border); color: var(--accent3); }
+  .btn-pause:hover:not(:disabled) { border-color: var(--accent3); }
+  .btn-cancel { background: var(--bg3); border: 1px solid var(--border); color: var(--red); }
+  .btn-cancel:hover:not(:disabled) { border-color: var(--red); }
+  .btn-export { background: var(--bg3); border: 1px solid var(--border); color: var(--accent2); }
+  .btn-export:hover:not(:disabled) { border-color: var(--accent2); }
+
+  /* PROGRESS BAR */
+  .progress-section {
+    padding: 10px 20px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .progress-bar-wrap {
+    flex: 1;
+    height: 4px;
+    background: var(--bg3);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+  .progress-bar-fill.indeterminate {
+    width: 40% !important;
+    animation: indeterminate 1.4s ease-in-out infinite;
+  }
+  @keyframes indeterminate {
+    0% { transform: translateX(-150%); }
+    100% { transform: translateX(350%); }
+  }
+  .progress-status {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    min-width: 220px;
+    text-align: right;
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .status-dot.running { background: var(--accent); animation: pulse 1s ease-in-out infinite; }
+  .status-dot.paused { background: var(--accent3); animation: none; }
+  .status-dot.done { background: var(--accent2); animation: none; }
+  .status-dot.error { background: var(--red); animation: none; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  /* RESULTS */
+  .results-section {
+    flex: 1;
+    overflow-y: auto;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+  }
+  .results-header {
+    padding: 10px 20px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .results-header-left {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--font-ui);
+  }
+  .results-count-badge {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; padding: 3px 8px; border-radius: 4px;
+    font-family: var(--font-mono); border: 1px solid var(--border); color: var(--muted);
+  }
+  .chip.active { border-color: var(--accent); color: var(--accent); }
+  .chip.paused-chip { border-color: var(--accent3); color: var(--accent3); }
+
+  /* FILTER BAR */
+  .filter-bar {
+    padding: 8px 20px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: sticky;
+    top: 45px;
+    z-index: 9;
+  }
+  .filter-icon { color: var(--muted); font-size: 14px; }
+  .filter-input {
+    flex: 1;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 12px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .filter-input:focus { border-color: var(--accent2); }
+  .filter-input::placeholder { color: var(--muted); }
+  .filter-count {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    min-width: 100px;
+    text-align: right;
+  }
+
+  /* RESULT ITEMS */
+  .results-body { flex: 1; }
+  .result-item {
+    padding: 7px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    line-height: 1.5;
+  }
+  .result-item:hover { background: var(--bg2); }
+  .result-num {
+    color: var(--muted);
+    font-size: 11px;
+    min-width: 52px;
+    text-align: right;
+    padding-top: 1px;
+    user-select: none;
+    flex-shrink: 0;
+  }
+  .result-text { color: var(--text); word-break: break-all; flex: 1; }
+  .result-text .highlight { color: var(--accent); font-weight: 700; }
+  .copy-btn {
+    background: none; border: 1px solid var(--border); border-radius: 5px;
+    color: var(--muted); cursor: pointer; padding: 2px 7px; font-size: 11px;
+    transition: all 0.15s; flex-shrink: 0; margin-top: 1px;
+  }
+  .copy-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  /* EMPTY STATE */
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; height: 280px; gap: 12px; color: var(--muted);
+  }
+  .empty-icon { font-size: 48px; opacity: 0.3; }
+  .empty-title { font-family: var(--font-ui); font-size: 16px; font-weight: 500; color: var(--muted); }
+  .empty-sub { font-size: 13px; color: var(--muted); opacity: 0.6; }
+
+  /* PAGINATION */
+  .pagination {
+    padding: 10px 20px;
+    background: var(--bg2);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .pagination-info {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .pagination-controls { display: flex; align-items: center; gap: 6px; }
+  .page-btn {
+    padding: 5px 11px; border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg3); color: var(--text);
+    font-family: var(--font-mono); font-size: 12px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .page-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .page-btn.current { border-color: var(--accent); color: var(--accent); background: var(--bg2); }
+  .page-input {
+    width: 50px; text-align: center;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 6px;
+    font-family: var(--font-mono); font-size: 12px;
+    color: var(--text); outline: none;
+  }
+  .page-input:focus { border-color: var(--accent); }
+  .page-label { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- STATS BAR -->
+<div class="stats-bar">
+  <div class="stat-card">
+    <div class="stat-icon">📁</div>
+    <div class="stat-info">
+      <div class="stat-val" id="stat-dirs">—</div>
+      <div class="stat-label">Directory</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">🔍</div>
+    <div class="stat-info">
+      <div class="stat-val" id="stat-results">0</div>
+      <div class="stat-label">Results Found</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">⏱️</div>
+    <div class="stat-info">
+      <div class="stat-val" id="stat-elapsed">0ms</div>
+      <div class="stat-label">Elapsed</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">⚡</div>
+    <div class="stat-info">
+      <div class="stat-val" id="stat-speed">—</div>
+      <div class="stat-label">Results/sec</div>
+    </div>
+  </div>
+</div>
+
+<!-- SEARCH SECTION -->
+<div class="search-section">
+  <div class="search-row">
+    <div class="search-input-wrap">
+      <span class="search-icon">⌕</span>
+      <input class="search-input" id="query-input" type="text"
+        placeholder='Search keyword, e.g. ollama.com' autocomplete="off" />
+    </div>
+    <input class="dir-input" id="dir-input" type="text"
+      value="C:\Users\rdp\Desktop\backup\X-LOGS-main\ulp\downloads" placeholder="Directory" />
+    <input class="max-input" id="max-input" type="number" value="10000" placeholder="Max results" />
+    <button class="btn btn-start" id="btn-start" onclick="startSearch()">▶ Start</button>
+    <button class="btn btn-pause" id="btn-pause" onclick="togglePause()" disabled>⏸ Pause</button>
+    <button class="btn btn-cancel" id="btn-cancel" onclick="cancelSearch()" disabled>✕ Stop</button>
+    <button class="btn btn-export" id="btn-export" onclick="exportResults()" disabled>↓ Export</button>
+  </div>
+</div>
+
+<!-- PROGRESS BAR -->
+<div class="progress-section">
+  <div class="status-dot" id="status-dot"></div>
+  <div class="progress-bar-wrap">
+    <div class="progress-bar-fill" id="progress-bar"></div>
+  </div>
+  <div class="progress-status" id="progress-status">Ready to search.</div>
+</div>
+
+<!-- RESULTS -->
+<div class="results-section" id="results-section">
+  <div class="results-header">
+    <div class="results-header-left">
+      RESULTS
+      <span class="results-count-badge" id="results-badge">0</span>
+      <span class="chip" id="status-chip">idle</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn btn-export" style="padding:4px 12px;font-size:12px;" onclick="clearResults()">🗑 Clear</button>
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <span class="filter-icon">🔎</span>
+    <input class="filter-input" id="filter-input" type="text"
+      placeholder="Filter results on this page..." oninput="onFilter()" />
+    <span class="filter-count" id="filter-count"></span>
+  </div>
+
+  <div class="results-body" id="results-body">
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">🗂</div>
+      <div class="empty-title">Ready to search.</div>
+      <div class="empty-sub">Enter a keyword above to begin scanning.</div>
+    </div>
+  </div>
+
+  <div class="pagination" id="pagination" style="display:none;">
+    <div class="pagination-info" id="pagination-info">—</div>
+    <div class="pagination-controls">
+      <button class="page-btn" id="btn-first" onclick="goPage(1)">«</button>
+      <button class="page-btn" id="btn-prev" onclick="goPage(currentPage - 1)">‹</button>
+      <span class="page-label">Page</span>
+      <input class="page-input" id="page-jump" type="number" min="1" value="1"
+        onkeydown="if(event.key==='Enter') goPage(+this.value)"
+        onblur="goPage(+this.value)" />
+      <span class="page-label" id="page-of">of 1</span>
+      <button class="page-btn" id="btn-next" onclick="goPage(currentPage + 1)">›</button>
+      <button class="page-btn" id="btn-last" onclick="goPage(totalPages)">»</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── State ──────────────────────────────────────────────
+  const PAGE_SIZE = 100;
+
+  let eventSource  = null;
+  let allResults   = [];      // semua hasil dari SSE
+  let filtered     = null;    // null = tidak filter, array = hasil filter
+  let currentPage  = 1;
+  let totalPages   = 1;
+  let isPaused     = false;
+  let searchQuery  = '';
+  let startTime    = null;
+  let speedTimer   = null;
+  let lastCount    = 0;
+
+  // ── Helpers ───────────────────────────────────────────
+  function escapeHtml(t) {
+    return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function highlight(text, kw) {
+    if (!kw) return text;
+    const re = new RegExp('(' + kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi');
+    return text.replace(re, '<span class="highlight">$1</span>');
+  }
+  function copyText(t) {
+    navigator.clipboard.writeText(t).catch(() => {});
+  }
+
+  // ── Status / progress ─────────────────────────────────
+  function setStatus(s) {
+    document.getElementById('status-dot').className = 'status-dot ' + s;
+    const chip = document.getElementById('status-chip');
+    chip.textContent = s;
+    chip.className = 'chip' + (s==='running'?' active': s==='paused'?' paused-chip':'');
+  }
+  function setProgress(indeterminate) {
+    const bar = document.getElementById('progress-bar');
+    if (indeterminate) {
+      bar.classList.add('indeterminate');
+    } else {
+      bar.classList.remove('indeterminate');
+      bar.style.width = '100%';
+    }
+  }
+  function updateStats(count, elapsed) {
+    document.getElementById('stat-results').textContent = count.toLocaleString();
+    document.getElementById('results-badge').textContent = count.toLocaleString();
+    if (elapsed) document.getElementById('stat-elapsed').textContent = elapsed;
+  }
+
+  // ── Render page ───────────────────────────────────────
+  function getSource() {
+    return filtered !== null ? filtered : allResults;
+  }
+
+  function renderPage(page) {
+    const src = getSource();
+    totalPages = Math.max(1, Math.ceil(src.length / PAGE_SIZE));
+    currentPage = Math.max(1, Math.min(page, totalPages));
+
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const end   = Math.min(start + PAGE_SIZE, src.length);
+    const slice = src.slice(start, end);
+
+    const body = document.getElementById('results-body');
+
+    // Empty state
+    if (src.length === 0) {
+      body.innerHTML = `<div class="empty-state">
+        <div class="empty-icon">🔍</div>
+        <div class="empty-title">No results${filtered !== null ? ' matching filter' : ''}.</div>
+      </div>`;
+      document.getElementById('pagination').style.display = 'none';
+      return;
+    }
+
+    // Build rows — use DocumentFragment for performance
+    const frag = document.createDocumentFragment();
+    slice.forEach((line, i) => {
+      const globalNum = start + i + 1;
+      const div = document.createElement('div');
+      div.className = 'result-item';
+      div.innerHTML =
+        `<span class="result-num">${globalNum}</span>` +
+        `<span class="result-text">${highlight(escapeHtml(line), searchQuery)}</span>` +
+        `<button class="copy-btn" onclick="copyText(${JSON.stringify(line)})">📋</button>`;
+      frag.appendChild(div);
+    });
+
+    body.innerHTML = '';
+    body.appendChild(frag);
+
+    // Pagination bar
+    document.getElementById('pagination').style.display = 'flex';
+    const info = `${(start+1).toLocaleString()}–${end.toLocaleString()} of ${src.length.toLocaleString()} results`;
+    document.getElementById('pagination-info').textContent = info;
+    document.getElementById('page-of').textContent = 'of ' + totalPages;
+    document.getElementById('page-jump').value = currentPage;
+    document.getElementById('btn-first').disabled = currentPage <= 1;
+    document.getElementById('btn-prev').disabled  = currentPage <= 1;
+    document.getElementById('btn-next').disabled  = currentPage >= totalPages;
+    document.getElementById('btn-last').disabled  = currentPage >= totalPages;
+
+    // Scroll hasil ke atas saat ganti halaman
+    document.getElementById('results-section').scrollTop = 0;
+  }
+
+  function goPage(p) {
+    renderPage(p);
+  }
+
+  // ── Filter ────────────────────────────────────────────
+  function onFilter() {
+    const kw = document.getElementById('filter-input').value.trim().toLowerCase();
+    if (kw === '') {
+      filtered = null;
+      document.getElementById('filter-count').textContent = '';
+    } else {
+      filtered = allResults.filter(l => l.toLowerCase().includes(kw));
+      document.getElementById('filter-count').textContent =
+        filtered.length.toLocaleString() + ' / ' + allResults.length.toLocaleString();
+    }
+    renderPage(1);
+  }
+
+  // ── Search ────────────────────────────────────────────
+  function startSearch() {
+    searchQuery = document.getElementById('query-input').value.trim();
+    if (!searchQuery) { alert('Enter a search keyword.'); return; }
+
+    const dir = document.getElementById('dir-input').value.trim()
+      || 'C:\\Users\\rdp\\Desktop\\backup\\X-LOGS-main\\ulp\\downloads';
+    const max = document.getElementById('max-input').value || '10000';
+
+    // Reset state
+    allResults  = [];
+    filtered    = null;
+    currentPage = 1;
+    lastCount   = 0;
+    isPaused    = false;
+
+    document.getElementById('stat-dirs').textContent = dir.split(/[\\/]/).pop() || dir;
+    document.getElementById('filter-input').value = '';
+    document.getElementById('filter-count').textContent = '';
+    document.getElementById('results-body').innerHTML = `<div class="empty-state" id="empty-state">
+      <div class="empty-icon">🗂</div><div class="empty-title">Searching...</div></div>`;
+    document.getElementById('pagination').style.display = 'none';
+
+    updateStats(0, '0ms');
+    document.getElementById('stat-speed').textContent = '—';
+
+    document.getElementById('btn-start').disabled  = true;
+    document.getElementById('btn-pause').disabled  = false;
+    document.getElementById('btn-cancel').disabled = false;
+    document.getElementById('btn-export').disabled = true;
+    document.getElementById('btn-pause').textContent = '⏸ Pause';
+
+    setStatus('running');
+    setProgress(true);
+    document.getElementById('progress-status').textContent = 'Searching...';
+
+    startTime = Date.now();
+    speedTimer = setInterval(() => {
+      const rps = allResults.length - lastCount;
+      lastCount = allResults.length;
+      document.getElementById('stat-speed').textContent = rps.toLocaleString();
+
+      const elapsedSec = (Date.now() - startTime) / 1000;
+      document.getElementById('stat-elapsed').textContent = elapsedSec.toFixed(1) + 's';
+
+      // ETA — pure JS math, zero overhead
+      const maxResult = parseInt(document.getElementById('max-input').value) || 10000;
+      let etaText = '';
+      if (rps > 0 && elapsedSec > 3 && allResults.length < maxResult) {
+        const etaSec = (maxResult - allResults.length) / rps;
+        if (etaSec < 60) {
+          etaText = ' · ETA ~' + Math.ceil(etaSec) + 's';
+        } else {
+          const m = Math.floor(etaSec / 60), s = Math.ceil(etaSec % 60);
+          etaText = ' · ETA ~' + m + 'm ' + s + 's';
+        }
+      }
+
+      const status = document.getElementById('progress-status');
+      if (status.textContent.startsWith('Search') || status.textContent.includes('ETA')) {
+        status.textContent = 'Searching... ' + allResults.length.toLocaleString() + ' found' + etaText;
+      }
+    }, 1000);
+
+    const url = `/search?query=${encodeURIComponent(searchQuery)}&directory=${encodeURIComponent(dir)}&max=${max}`;
+    eventSource = new EventSource(url);
+
+    eventSource.onmessage = (e) => {
+      const ev = JSON.parse(e.data);
+
+      if (ev.type === 'result') {
+        allResults.push(ev.data);
+        updateStats(allResults.length, ev.elapsed);
+
+        // Auto-render: update page saat ini kalau user ada di halaman terakhir
+        // atau baru mulai (halaman 1 belum penuh)
+        const src = getSource();
+        const newTotal = Math.max(1, Math.ceil(src.length / PAGE_SIZE));
+        if (currentPage === newTotal || src.length <= PAGE_SIZE) {
+          renderPage(currentPage);
+        }
+
+      } else if (ev.type === 'done') {
+        onSearchDone(ev);
+      } else if (ev.type === 'cancelled') {
+        onSearchCancelled(ev);
+      } else if (ev.type === 'error') {
+        onSearchError(ev.data);
+      }
+    };
+
+    eventSource.onerror = () => {
+      if (eventSource.readyState === EventSource.CLOSED) {
+        onSearchDone({ count: allResults.length, elapsed: ((Date.now()-startTime)/1000).toFixed(1)+'s' });
+      }
+    };
+  }
+
+  function onSearchDone(ev) {
+    clearInterval(speedTimer);
+    eventSource && eventSource.close();
+    setStatus('done');
+    setProgress(false);
+    document.getElementById('progress-status').textContent =
+      `Done — ${allResults.length.toLocaleString()} results in ${ev.elapsed || ''}`;
+    document.getElementById('btn-start').disabled  = false;
+    document.getElementById('btn-pause').disabled  = true;
+    document.getElementById('btn-cancel').disabled = true;
+    document.getElementById('btn-export').disabled = allResults.length === 0;
+    document.getElementById('stat-speed').textContent = '—';
+    renderPage(currentPage);
+  }
+
+  function onSearchCancelled(ev) {
+    clearInterval(speedTimer);
+    eventSource && eventSource.close();
+    setStatus('idle');
+    document.getElementById('progress-bar').classList.remove('indeterminate');
+    document.getElementById('progress-bar').style.width = '0%';
+    document.getElementById('progress-status').textContent =
+      `Cancelled — ${allResults.length.toLocaleString()} results`;
+    document.getElementById('btn-start').disabled  = false;
+    document.getElementById('btn-pause').disabled  = true;
+    document.getElementById('btn-cancel').disabled = true;
+    document.getElementById('btn-export').disabled = allResults.length === 0;
+    document.getElementById('stat-speed').textContent = '—';
+    renderPage(currentPage);
+  }
+
+  function onSearchError(msg) {
+    clearInterval(speedTimer);
+    setStatus('error');
+    document.getElementById('progress-bar').classList.remove('indeterminate');
+    document.getElementById('progress-status').textContent = 'Error: ' + msg;
+    document.getElementById('btn-start').disabled  = false;
+    document.getElementById('btn-pause').disabled  = true;
+    document.getElementById('btn-cancel').disabled = true;
+    alert('Error: ' + msg);
+  }
+
+  function togglePause() {
+    fetch('/pause').then(r => r.json()).then(data => {
+      isPaused = data.status === 'paused';
+      document.getElementById('btn-pause').textContent = isPaused ? '▶ Resume' : '⏸ Pause';
+      setStatus(isPaused ? 'paused' : 'running');
+      document.getElementById('progress-status').textContent = isPaused ? 'Paused...' : 'Searching...';
+      if (isPaused) {
+        document.getElementById('progress-bar').classList.remove('indeterminate');
+      } else {
+        document.getElementById('progress-bar').classList.add('indeterminate');
+      }
+    });
+  }
+
+  function cancelSearch() {
+    fetch('/cancel').then(() => {
+      eventSource && eventSource.close();
+      clearInterval(speedTimer);
+    });
+  }
+
+  function exportResults() { window.location.href = '/export'; }
+
+  function clearResults() {
+    allResults  = [];
+    filtered    = null;
+    currentPage = 1;
+    document.getElementById('results-body').innerHTML = `<div class="empty-state">
+      <div class="empty-icon">🗂</div>
+      <div class="empty-title">Ready to search.</div>
+      <div class="empty-sub">Enter a keyword above to begin scanning.</div>
+    </div>`;
+    document.getElementById('pagination').style.display = 'none';
+    document.getElementById('filter-input').value = '';
+    document.getElementById('filter-count').textContent = '';
+    updateStats(0, '0ms');
+    document.getElementById('btn-export').disabled = true;
+    setStatus('idle');
+  }
+
+  document.getElementById('query-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !document.getElementById('btn-start').disabled) startSearch();
+  });
+</script>
+</body>
+</html>
