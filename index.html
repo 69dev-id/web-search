@@ -3,786 +3,1338 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ugrep Search</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<title>Leak Search Console</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0d0f14;
-    --bg2: #13161e;
-    --bg3: #1a1e2a;
-    --border: #252a38;
-    --accent: #4ade80;
-    --accent2: #22d3ee;
-    --accent3: #f59e0b;
-    --red: #f87171;
-    --text: #e2e8f0;
-    --muted: #64748b;
-    --font-mono: 'JetBrains Mono', monospace;
+    --bg: #07111f;
+    --bg-soft: #0d1728;
+    --panel: rgba(17, 27, 45, 0.92);
+    --panel-2: rgba(11, 21, 38, 0.96);
+    --panel-3: #111d31;
+    --border: rgba(118, 138, 170, 0.2);
+    --border-strong: rgba(79, 195, 247, 0.34);
+    --text: #e6eefb;
+    --muted: #8da2c6;
+    --green: #41d888;
+    --cyan: #47c6ff;
+    --amber: #ffcb61;
+    --red: #ff6b81;
+    --shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
     --font-ui: 'Space Grotesk', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
   }
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  * { box-sizing: border-box; }
 
   body {
-    background: var(--bg);
+    margin: 0;
+    min-height: 100vh;
     color: var(--text);
     font-family: var(--font-ui);
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
+    background:
+      radial-gradient(circle at top left, rgba(71, 198, 255, 0.12), transparent 28%),
+      radial-gradient(circle at top right, rgba(65, 216, 136, 0.08), transparent 22%),
+      linear-gradient(180deg, #06101b 0%, #07111f 35%, #091526 100%);
   }
 
-  /* TOP STATS BAR */
-  .stats-bar {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    border-bottom: 1px solid var(--border);
+  .app-shell {
+    width: min(1680px, calc(100% - 28px));
+    margin: 0 auto;
+    padding: 22px 0 28px;
   }
+
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 18px;
+    margin-bottom: 18px;
+  }
+
+  .brand h1 {
+    margin: 0;
+    font-size: clamp(24px, 3vw, 32px);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+  }
+
+  .brand p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .mode-chip {
+    border: 1px solid var(--border);
+    background: rgba(15, 24, 40, 0.78);
+    color: var(--muted);
+    padding: 10px 14px;
+    border-radius: 14px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+
   .stat-card {
-    padding: 18px 24px;
-    border-right: 1px solid var(--border);
+    min-height: 118px;
+    padding: 18px 18px 16px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background:
+      linear-gradient(180deg, rgba(20, 32, 54, 0.98), rgba(11, 21, 37, 0.96)),
+      linear-gradient(140deg, rgba(71, 198, 255, 0.04), transparent 60%);
+    box-shadow: var(--shadow);
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .stat-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    display: grid;
+    place-items: center;
+    font-size: 20px;
+    background: linear-gradient(180deg, rgba(73, 92, 129, 0.35), rgba(17, 28, 49, 0.8));
+    border: 1px solid rgba(135, 162, 204, 0.18);
+    flex-shrink: 0;
+  }
+
+  .stat-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .stat-value {
+    font-family: var(--font-mono);
+    font-size: clamp(20px, 2.4vw, 30px);
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    word-break: break-word;
+  }
+
+  .stat-label {
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .stat-subtext {
+    color: rgba(141, 162, 198, 0.72);
+    font-size: 12px;
+  }
+
+  .panel {
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    background: linear-gradient(180deg, rgba(15, 24, 40, 0.98), rgba(10, 19, 33, 0.98));
+    box-shadow: var(--shadow);
+  }
+
+  .controls {
+    padding: 18px;
+    margin-bottom: 18px;
+  }
+
+  .locked-directory {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(8, 17, 29, 0.7);
+    border: 1px solid rgba(101, 130, 175, 0.18);
+    margin-bottom: 14px;
+    flex-wrap: wrap;
   }
-  .stat-card:last-child { border-right: none; }
-  .stat-icon {
-    width: 36px; height: 36px;
-    border-radius: 8px;
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 16px;
+
+  .directory-chip {
+    border-radius: 999px;
+    background: rgba(71, 198, 255, 0.12);
+    color: var(--cyan);
+    border: 1px solid rgba(71, 198, 255, 0.24);
+    padding: 5px 10px;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    font-weight: 700;
+    text-transform: uppercase;
   }
-  .stat-info { display: flex; flex-direction: column; }
-  .stat-val {
+
+  .directory-path {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    word-break: break-all;
+  }
+
+  .search-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .search-input-wrap {
+    position: relative;
+    flex: 1 1 480px;
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    pointer-events: none;
+  }
+
+  .search-input,
+  .filter-input,
+  .page-input {
+    width: 100%;
+    border: 1px solid rgba(102, 131, 175, 0.18);
+    background: rgba(5, 13, 24, 0.72);
+    color: var(--text);
+    border-radius: 16px;
+    outline: none;
+    font-family: var(--font-mono);
+    transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
+  }
+
+  .search-input {
+    padding: 15px 16px 15px 42px;
+    font-size: 14px;
+  }
+
+  .search-input:focus,
+  .filter-input:focus,
+  .page-input:focus {
+    border-color: rgba(71, 198, 255, 0.5);
+    box-shadow: 0 0 0 4px rgba(71, 198, 255, 0.12);
+  }
+
+  .button-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    border: 1px solid transparent;
+    border-radius: 14px;
+    padding: 13px 16px;
+    cursor: pointer;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    transition: transform 0.18s, border-color 0.18s, background 0.18s, opacity 0.18s;
+    white-space: nowrap;
+  }
+
+  .btn:hover:not(:disabled) { transform: translateY(-1px); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+  .btn-start { background: linear-gradient(180deg, #3089ff, #2168f1); }
+  .btn-pause { background: rgba(255, 203, 97, 0.14); border-color: rgba(255, 203, 97, 0.24); color: var(--amber); }
+  .btn-stop { background: rgba(255, 107, 129, 0.12); border-color: rgba(255, 107, 129, 0.24); color: var(--red); }
+  .btn-export,
+  .btn-clear {
+    background: rgba(71, 198, 255, 0.1);
+    border-color: rgba(71, 198, 255, 0.18);
+    color: var(--cyan);
+  }
+
+  .progress-shell {
+    margin-top: 14px;
+    padding: 16px 18px 14px;
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(8, 15, 26, 0.95), rgba(7, 14, 24, 0.84));
+    border: 1px solid rgba(95, 125, 168, 0.16);
+  }
+
+  .progress-top,
+  .progress-bottom {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .progress-top {
+    margin-bottom: 12px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .progress-track {
+    height: 16px;
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid rgba(91, 117, 155, 0.24);
+    background: linear-gradient(180deg, rgba(12, 22, 37, 0.92), rgba(7, 13, 23, 0.92));
+    box-shadow: inset 0 1px 8px rgba(0, 0, 0, 0.32);
+  }
+
+  .progress-fill {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, #44e1ff 0%, #4aa3ff 45%, #6f87ff 100%);
+    box-shadow: 0 0 18px rgba(71, 198, 255, 0.38);
+    transition: width 0.25s ease;
+  }
+
+  .progress-bottom {
+    margin-top: 10px;
+  }
+
+  .progress-status {
+    color: var(--text);
+    font-size: 13px;
+  }
+
+  .progress-percent {
     font-family: var(--font-mono);
     font-size: 20px;
     font-weight: 700;
-    color: var(--text);
-    line-height: 1;
-    transition: all 0.2s;
-  }
-  .stat-label {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    color: var(--muted);
-    text-transform: uppercase;
-    margin-top: 3px;
+    color: var(--cyan);
   }
 
-  /* SEARCH BAR */
-  .search-section {
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg2);
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .search-row {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-  }
-  .search-input-wrap {
-    flex: 1;
-    position: relative;
-  }
-  .search-input {
-    width: 100%;
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 11px 16px 11px 40px;
-    font-family: var(--font-mono);
-    font-size: 14px;
-    color: var(--text);
-    outline: none;
-    transition: border-color 0.2s;
-  }
-  .search-input:focus { border-color: var(--accent); }
-  .search-input::placeholder { color: var(--muted); }
-  .search-icon {
-    position: absolute;
-    left: 12px; top: 50%;
-    transform: translateY(-50%);
-    color: var(--muted);
-    font-size: 16px;
-    pointer-events: none;
-  }
-  .dir-input {
-    width: 280px;
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 11px 14px;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: var(--text);
-    outline: none;
-    transition: border-color 0.2s;
-  }
-  .dir-input:focus { border-color: var(--accent2); }
-  .max-input {
-    width: 110px;
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 11px 14px;
-    font-family: var(--font-mono);
-    font-size: 13px;
-    color: var(--text);
-    outline: none;
-  }
-
-  /* BUTTONS */
-  .btn {
-    padding: 10px 20px;
-    border-radius: 8px;
-    border: none;
-    font-family: var(--font-ui);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    display: flex; align-items: center; gap: 7px;
-    transition: all 0.15s;
-    white-space: nowrap;
-  }
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn-start { background: var(--accent); color: #0d0f14; }
-  .btn-start:hover:not(:disabled) { background: #86efac; }
-  .btn-pause { background: var(--bg3); border: 1px solid var(--border); color: var(--accent3); }
-  .btn-pause:hover:not(:disabled) { border-color: var(--accent3); }
-  .btn-cancel { background: var(--bg3); border: 1px solid var(--border); color: var(--red); }
-  .btn-cancel:hover:not(:disabled) { border-color: var(--red); }
-  .btn-export { background: var(--bg3); border: 1px solid var(--border); color: var(--accent2); }
-  .btn-export:hover:not(:disabled) { border-color: var(--accent2); }
-
-  /* PROGRESS BAR */
-  .progress-section {
-    padding: 10px 20px;
-    background: var(--bg2);
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .progress-bar-wrap {
-    flex: 1;
-    height: 4px;
-    background: var(--bg3);
-    border-radius: 2px;
+  .results-panel {
     overflow: hidden;
   }
-  .progress-bar-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-    border-radius: 2px;
-    width: 0%;
-    transition: width 0.3s ease;
-  }
-  .progress-bar-fill.indeterminate {
-    width: 40% !important;
-    animation: indeterminate 1.4s ease-in-out infinite;
-  }
-  @keyframes indeterminate {
-    0% { transform: translateX(-150%); }
-    100% { transform: translateX(350%); }
-  }
-  .progress-status {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: var(--muted);
-    min-width: 220px;
-    text-align: right;
-  }
-  .status-dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    background: var(--muted);
-    flex-shrink: 0;
-    transition: background 0.3s;
-  }
-  .status-dot.running { background: var(--accent); animation: pulse 1s ease-in-out infinite; }
-  .status-dot.paused { background: var(--accent3); animation: none; }
-  .status-dot.done { background: var(--accent2); animation: none; }
-  .status-dot.error { background: var(--red); animation: none; }
-  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-  /* RESULTS */
-  .results-section {
-    flex: 1;
-    overflow-y: auto;
-    font-family: var(--font-mono);
-    font-size: 13px;
-    display: flex;
-    flex-direction: column;
-  }
   .results-header {
-    padding: 10px 20px;
-    background: var(--bg2);
-    border-bottom: 1px solid var(--border);
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-  .results-header-left {
-    display: flex; align-items: center; gap: 10px;
-    font-size: 12px;
-    color: var(--muted);
-    font-family: var(--font-ui);
-  }
-  .results-count-badge {
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 2px 8px;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: var(--accent);
-    font-weight: 700;
-  }
-  .chip {
-    display: inline-flex; align-items: center; gap: 4px;
-    font-size: 11px; padding: 3px 8px; border-radius: 4px;
-    font-family: var(--font-mono); border: 1px solid var(--border); color: var(--muted);
-  }
-  .chip.active { border-color: var(--accent); color: var(--accent); }
-  .chip.paused-chip { border-color: var(--accent3); color: var(--accent3); }
-
-  /* FILTER BAR */
-  .filter-bar {
-    padding: 8px 20px;
-    background: var(--bg2);
+    gap: 12px;
+    align-items: center;
+    padding: 16px 18px;
     border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    background: rgba(14, 24, 40, 0.78);
+  }
+
+  .results-meta {
     display: flex;
     align-items: center;
     gap: 10px;
-    position: sticky;
-    top: 45px;
-    z-index: 9;
-  }
-  .filter-icon { color: var(--muted); font-size: 14px; }
-  .filter-input {
-    flex: 1;
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 7px 12px;
-    font-family: var(--font-mono);
-    font-size: 13px;
-    color: var(--text);
-    outline: none;
-    transition: border-color 0.2s;
-  }
-  .filter-input:focus { border-color: var(--accent2); }
-  .filter-input::placeholder { color: var(--muted); }
-  .filter-count {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: var(--muted);
-    min-width: 100px;
-    text-align: right;
+    flex-wrap: wrap;
   }
 
-  /* RESULT ITEMS */
-  .results-body { flex: 1; }
-  .result-item {
-    padding: 7px 20px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    line-height: 1.5;
+  .section-title {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
-  .result-item:hover { background: var(--bg2); }
-  .result-num {
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    border: 1px solid rgba(107, 131, 168, 0.2);
+    background: rgba(11, 20, 35, 0.86);
     color: var(--muted);
+    padding: 6px 10px;
     font-size: 11px;
-    min-width: 52px;
-    text-align: right;
-    padding-top: 1px;
-    user-select: none;
-    flex-shrink: 0;
+    font-family: var(--font-mono);
   }
-  .result-text { color: var(--text); word-break: break-all; flex: 1; }
-  .result-text .highlight { color: var(--accent); font-weight: 700; }
-  .copy-btn {
-    background: none; border: 1px solid var(--border); border-radius: 5px;
-    color: var(--muted); cursor: pointer; padding: 2px 7px; font-size: 11px;
-    transition: all 0.15s; flex-shrink: 0; margin-top: 1px;
-  }
-  .copy-btn:hover { border-color: var(--accent2); color: var(--accent2); }
 
-  /* EMPTY STATE */
-  .empty-state {
-    display: flex; flex-direction: column; align-items: center;
-    justify-content: center; height: 280px; gap: 12px; color: var(--muted);
-  }
-  .empty-icon { font-size: 48px; opacity: 0.3; }
-  .empty-title { font-family: var(--font-ui); font-size: 16px; font-weight: 500; color: var(--muted); }
-  .empty-sub { font-size: 13px; color: var(--muted); opacity: 0.6; }
+  .chip.active { color: var(--green); border-color: rgba(65, 216, 136, 0.28); }
+  .chip.paused { color: var(--amber); border-color: rgba(255, 203, 97, 0.28); }
+  .chip.error { color: var(--red); border-color: rgba(255, 107, 129, 0.3); }
+  .chip.query { color: var(--cyan); border-color: rgba(71, 198, 255, 0.28); }
 
-  /* PAGINATION */
-  .pagination {
-    padding: 10px 20px;
-    background: var(--bg2);
-    border-top: 1px solid var(--border);
+  .filter-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    flex-shrink: 0;
+    gap: 12px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10, 19, 33, 0.72);
+    flex-wrap: wrap;
   }
-  .pagination-info {
+
+  .filter-input-wrap {
+    position: relative;
+    flex: 1 1 300px;
+  }
+
+  .filter-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    pointer-events: none;
+  }
+
+  .filter-input {
+    padding: 12px 14px 12px 40px;
+    font-size: 13px;
+  }
+
+  .filter-count {
+    font-family: var(--font-mono);
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .results-table {
+    min-height: 340px;
+    background: rgba(8, 14, 24, 0.56);
+  }
+
+  .result-row {
+    display: grid;
+    grid-template-columns: 78px minmax(0, 1fr) 74px;
+    gap: 12px;
+    align-items: start;
+    padding: 11px 18px;
+    border-bottom: 1px solid rgba(104, 128, 165, 0.12);
     font-family: var(--font-mono);
     font-size: 12px;
-    color: var(--muted);
   }
-  .pagination-controls { display: flex; align-items: center; gap: 6px; }
-  .page-btn {
-    padding: 5px 11px; border-radius: 6px;
-    border: 1px solid var(--border);
-    background: var(--bg3); color: var(--text);
-    font-family: var(--font-mono); font-size: 12px;
-    cursor: pointer; transition: all 0.15s;
-  }
-  .page-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-  .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-  .page-btn.current { border-color: var(--accent); color: var(--accent); background: var(--bg2); }
-  .page-input {
-    width: 50px; text-align: center;
-    background: var(--bg3); border: 1px solid var(--border);
-    border-radius: 6px; padding: 5px 6px;
-    font-family: var(--font-mono); font-size: 12px;
-    color: var(--text); outline: none;
-  }
-  .page-input:focus { border-color: var(--accent); }
-  .page-label { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
 
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: var(--bg); }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+  .result-row:hover {
+    background: rgba(20, 30, 47, 0.5);
+  }
+
+  .result-index {
+    color: rgba(141, 162, 198, 0.74);
+    text-align: right;
+    padding-top: 2px;
+  }
+
+  .result-text {
+    line-height: 1.5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .result-text .highlight {
+    color: var(--green);
+    font-weight: 700;
+  }
+
+  .copy-btn {
+    justify-self: end;
+    border-radius: 12px;
+    border: 1px solid rgba(71, 198, 255, 0.16);
+    background: rgba(71, 198, 255, 0.08);
+    color: var(--cyan);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 7px 10px;
+    cursor: pointer;
+  }
+
+  .copy-btn:hover { border-color: rgba(71, 198, 255, 0.34); }
+
+  .empty-state {
+    min-height: 320px;
+    display: grid;
+    place-items: center;
+    text-align: center;
+    color: var(--muted);
+    padding: 40px 20px;
+  }
+
+  .empty-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .empty-icon {
+    font-size: 42px;
+    opacity: 0.7;
+  }
+
+  .empty-title {
+    color: var(--text);
+    font-size: 17px;
+    font-weight: 600;
+  }
+
+  .empty-subtitle {
+    font-size: 13px;
+  }
+
+  .pagination {
+    display: none;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    padding: 14px 18px;
+    border-top: 1px solid var(--border);
+    background: rgba(11, 20, 34, 0.86);
+    flex-wrap: wrap;
+  }
+
+  .pagination-info {
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .page-btn {
+    border-radius: 12px;
+    border: 1px solid rgba(101, 128, 171, 0.2);
+    background: rgba(8, 15, 26, 0.85);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 9px 12px;
+    cursor: pointer;
+  }
+
+  .page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .page-input {
+    width: 58px;
+    padding: 8px 10px;
+    text-align: center;
+    font-size: 12px;
+  }
+
+  .page-label {
+    font-family: var(--font-mono);
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: rgba(8, 14, 24, 0.7); }
+  ::-webkit-scrollbar-thumb { background: rgba(105, 128, 164, 0.3); border-radius: 999px; }
+
+  @media (max-width: 920px) {
+    .app-shell { width: min(100% - 18px, 1680px); }
+    .result-row { grid-template-columns: 56px minmax(0, 1fr); }
+    .copy-btn { justify-self: start; }
+  }
+
+  @media (max-width: 680px) {
+    .topbar,
+    .progress-top,
+    .progress-bottom,
+    .results-header,
+    .filter-row,
+    .pagination {
+      align-items: stretch;
+    }
+
+    .mode-chip,
+    .filter-count {
+      width: 100%;
+    }
+
+    .result-row {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .result-index {
+      text-align: left;
+    }
+  }
 </style>
 </head>
 <body>
+<div class="app-shell">
+  <header class="topbar">
+    <div class="brand">
+      <h1>Leak Search Console</h1>
+      <p>Fast TXT log search with live progress, ETA, and server-locked directory scan.</p>
+    </div>
+    <div class="mode-chip">Current Mode: Web Search</div>
+  </header>
 
-<!-- STATS BAR -->
-<div class="stats-bar">
-  <div class="stat-card">
-    <div class="stat-icon">📁</div>
-    <div class="stat-info">
-      <div class="stat-val" id="stat-dirs">—</div>
-      <div class="stat-label">Directory</div>
-    </div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-icon">🔍</div>
-    <div class="stat-info">
-      <div class="stat-val" id="stat-results">0</div>
-      <div class="stat-label">Results Found</div>
-    </div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-icon">⏱️</div>
-    <div class="stat-info">
-      <div class="stat-val" id="stat-elapsed">0ms</div>
-      <div class="stat-label">Elapsed</div>
-    </div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-icon">⚡</div>
-    <div class="stat-info">
-      <div class="stat-val" id="stat-speed">—</div>
-      <div class="stat-label">Results/sec</div>
-    </div>
-  </div>
-</div>
+  <section class="stats-grid">
+    <article class="stat-card">
+      <div class="stat-icon">📁</div>
+      <div class="stat-copy">
+        <div class="stat-value" id="stat-dirs">--</div>
+        <div class="stat-label">Directory</div>
+        <div class="stat-subtext">Configured from server</div>
+      </div>
+    </article>
+    <article class="stat-card">
+      <div class="stat-icon">🔍</div>
+      <div class="stat-copy">
+        <div class="stat-value" id="stat-results">0</div>
+        <div class="stat-label">Results Found</div>
+        <div class="stat-subtext">Current search matches</div>
+      </div>
+    </article>
+    <article class="stat-card">
+      <div class="stat-icon">⏱</div>
+      <div class="stat-copy">
+        <div class="stat-value" id="stat-elapsed">0.0s</div>
+        <div class="stat-label">Elapsed</div>
+        <div class="stat-subtext">Live search runtime</div>
+      </div>
+    </article>
+    <article class="stat-card">
+      <div class="stat-icon">⚡</div>
+      <div class="stat-copy">
+        <div class="stat-value" id="stat-speed">0</div>
+        <div class="stat-label">Results / Sec</div>
+        <div class="stat-subtext">Match throughput</div>
+      </div>
+    </article>
+    <article class="stat-card">
+      <div class="stat-icon">🧾</div>
+      <div class="stat-copy">
+        <div class="stat-value" id="stat-total-logs">--</div>
+        <div class="stat-label">Total Logs</div>
+        <div class="stat-subtext">All .txt files in directory</div>
+      </div>
+    </article>
+    <article class="stat-card">
+      <div class="stat-icon">💽</div>
+      <div class="stat-copy">
+        <div class="stat-value" id="stat-total-size">--</div>
+        <div class="stat-label">Total Size</div>
+        <div class="stat-subtext">Combined TXT size</div>
+      </div>
+    </article>
+    <article class="stat-card">
+      <div class="stat-icon">📄</div>
+      <div class="stat-copy">
+        <div class="stat-value" id="stat-total-lines">--</div>
+        <div class="stat-label">Est. Total Lines</div>
+        <div class="stat-subtext">Approximate line volume</div>
+      </div>
+    </article>
+  </section>
 
-<!-- SEARCH SECTION -->
-<div class="search-section">
-  <div class="search-row">
-    <div class="search-input-wrap">
-      <span class="search-icon">⌕</span>
-      <input class="search-input" id="query-input" type="text"
-        placeholder='Search keyword, e.g. ollama.com' autocomplete="off" />
+  <section class="panel controls">
+    <div class="locked-directory">
+      <span class="directory-chip">Server Directory</span>
+      <span class="directory-path" id="directory-path">Loading directory configuration...</span>
     </div>
-    <input class="dir-input" id="dir-input" type="text"
-      value="C:\Users\rdp\Desktop\backup\X-LOGS-main\ulp\downloads" placeholder="Directory" />
-    <input class="max-input" id="max-input" type="number" value="10000" placeholder="Max results" />
-    <button class="btn btn-start" id="btn-start" onclick="startSearch()">▶ Start</button>
-    <button class="btn btn-pause" id="btn-pause" onclick="togglePause()" disabled>⏸ Pause</button>
-    <button class="btn btn-cancel" id="btn-cancel" onclick="cancelSearch()" disabled>✕ Stop</button>
-    <button class="btn btn-export" id="btn-export" onclick="exportResults()" disabled>↓ Export</button>
-  </div>
-</div>
 
-<!-- PROGRESS BAR -->
-<div class="progress-section">
-  <div class="status-dot" id="status-dot"></div>
-  <div class="progress-bar-wrap">
-    <div class="progress-bar-fill" id="progress-bar"></div>
-  </div>
-  <div class="progress-status" id="progress-status">Ready to search.</div>
-</div>
-
-<!-- RESULTS -->
-<div class="results-section" id="results-section">
-  <div class="results-header">
-    <div class="results-header-left">
-      RESULTS
-      <span class="results-count-badge" id="results-badge">0</span>
-      <span class="chip" id="status-chip">idle</span>
+    <div class="search-row">
+      <div class="search-input-wrap">
+        <span class="search-icon">⌕</span>
+        <input class="search-input" id="query-input" type="text" placeholder="Enter keyword or domain, e.g. ollama.com" autocomplete="off">
+      </div>
+      <div class="button-row">
+        <button class="btn btn-start" id="btn-start" type="button" onclick="startSearch()">Start Search</button>
+        <button class="btn btn-pause" id="btn-pause" type="button" onclick="togglePause()" disabled>Pause</button>
+        <button class="btn btn-stop" id="btn-stop" type="button" onclick="cancelSearch()" disabled>Stop</button>
+        <button class="btn btn-export" id="btn-export" type="button" onclick="exportResults()" disabled>Export</button>
+      </div>
     </div>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <button class="btn btn-export" style="padding:4px 12px;font-size:12px;" onclick="clearResults()">🗑 Clear</button>
-    </div>
-  </div>
 
-  <div class="filter-bar">
-    <span class="filter-icon">🔎</span>
-    <input class="filter-input" id="filter-input" type="text"
-      placeholder="Filter results on this page..." oninput="onFilter()" />
-    <span class="filter-count" id="filter-count"></span>
-  </div>
-
-  <div class="results-body" id="results-body">
-    <div class="empty-state" id="empty-state">
-      <div class="empty-icon">🗂</div>
-      <div class="empty-title">Ready to search.</div>
-      <div class="empty-sub">Enter a keyword above to begin scanning.</div>
+    <div class="progress-shell">
+      <div class="progress-top">
+        <span id="progress-io">0 B / 0 B (0.0%)</span>
+        <span id="progress-telemetry">0 B/s · ETA --</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-bar"></div>
+      </div>
+      <div class="progress-bottom">
+        <span class="progress-status" id="progress-status">Ready to search.</span>
+        <span class="progress-percent" id="progress-percent">0.0%</span>
+      </div>
     </div>
-  </div>
+  </section>
 
-  <div class="pagination" id="pagination" style="display:none;">
-    <div class="pagination-info" id="pagination-info">—</div>
-    <div class="pagination-controls">
-      <button class="page-btn" id="btn-first" onclick="goPage(1)">«</button>
-      <button class="page-btn" id="btn-prev" onclick="goPage(currentPage - 1)">‹</button>
-      <span class="page-label">Page</span>
-      <input class="page-input" id="page-jump" type="number" min="1" value="1"
-        onkeydown="if(event.key==='Enter') goPage(+this.value)"
-        onblur="goPage(+this.value)" />
-      <span class="page-label" id="page-of">of 1</span>
-      <button class="page-btn" id="btn-next" onclick="goPage(currentPage + 1)">›</button>
-      <button class="page-btn" id="btn-last" onclick="goPage(totalPages)">»</button>
+  <section class="panel results-panel">
+    <div class="results-header">
+      <div class="results-meta">
+        <span class="section-title">Results</span>
+        <span class="chip" id="results-badge">0 Found</span>
+        <span class="chip query" id="query-chip">No active query</span>
+        <span class="chip" id="status-chip">idle</span>
+      </div>
+      <button class="btn btn-clear" id="btn-clear" type="button" onclick="clearResults()">Clear</button>
     </div>
-  </div>
+
+    <div class="filter-row">
+      <div class="filter-input-wrap">
+        <span class="filter-icon">🔎</span>
+        <input class="filter-input" id="filter-input" type="text" placeholder="Filter results on this page..." oninput="onFilter()">
+      </div>
+      <span class="filter-count" id="filter-count"></span>
+    </div>
+
+    <div class="results-table" id="results-body">
+      <div class="empty-state">
+        <div class="empty-card">
+          <div class="empty-icon">🗂</div>
+          <div class="empty-title">Ready to search</div>
+          <div class="empty-subtitle">Enter a keyword above to begin scanning the configured directory.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pagination" id="pagination">
+      <div class="pagination-info" id="pagination-info">--</div>
+      <div class="pagination-controls">
+        <button class="page-btn" id="btn-first" type="button" onclick="goPage(1)">«</button>
+        <button class="page-btn" id="btn-prev" type="button" onclick="goPage(currentPage - 1)">‹</button>
+        <span class="page-label">Page</span>
+        <input class="page-input" id="page-jump" type="number" min="1" value="1"
+          onkeydown="if(event.key==='Enter') goPage(+this.value)"
+          onblur="goPage(+this.value)">
+        <span class="page-label" id="page-of">of 1</span>
+        <button class="page-btn" id="btn-next" type="button" onclick="goPage(currentPage + 1)">›</button>
+        <button class="page-btn" id="btn-last" type="button" onclick="goPage(totalPages)">»</button>
+      </div>
+    </div>
+  </section>
 </div>
 
 <script>
-  // ── State ──────────────────────────────────────────────
   const PAGE_SIZE = 100;
+  const MAX_PREVIEW_CHARS = 360;
 
-  let eventSource  = null;
-  let allResults   = [];      // semua hasil dari SSE
-  let filtered     = null;    // null = tidak filter, array = hasil filter
-  let currentPage  = 1;
-  let totalPages   = 1;
-  let isPaused     = false;
-  let searchQuery  = '';
-  let startTime    = null;
-  let speedTimer   = null;
-  let lastCount    = 0;
+  let eventSource = null;
+  let pageItems = [];
+  let filteredPageItems = null;
+  let currentPage = 1;
+  let totalPages = 1;
+  let totalMatchesFound = 0;
+  let searchQuery = '';
+  let isRunning = false;
+  let isPaused = false;
+  let isStopping = false;
+  let pageFetchInFlight = false;
+  let queuedPage = null;
+  let pageRefreshTimer = null;
+  let pageContextVersion = 0;
+  let pageRequestSerial = 0;
+  let speedTimer = null;
+  let lastCount = 0;
+  let searchStartedAt = 0;
+  let latestProgress = {
+    processedBytes: 0,
+    totalBytes: 0,
+    progress: 0,
+    eta: '--',
+    speedBytes: 0,
+    filesDone: 0,
+    totalFiles: 0
+  };
 
-  // ── Helpers ───────────────────────────────────────────
-  function escapeHtml(t) {
-    return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-  function highlight(text, kw) {
-    if (!kw) return text;
-    const re = new RegExp('(' + kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi');
-    return text.replace(re, '<span class="highlight">$1</span>');
-  }
-  function copyText(t) {
-    navigator.clipboard.writeText(t).catch(() => {});
+  const $ = (id) => document.getElementById(id);
+
+  function escapeHtml(value) {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
   }
 
-  // ── Status / progress ─────────────────────────────────
-  function setStatus(s) {
-    document.getElementById('status-dot').className = 'status-dot ' + s;
-    const chip = document.getElementById('status-chip');
-    chip.textContent = s;
-    chip.className = 'chip' + (s==='running'?' active': s==='paused'?' paused-chip':'');
+  function highlight(text, keyword) {
+    if (!keyword) return text;
+    const pattern = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return text.replace(new RegExp('(' + pattern + ')', 'gi'), '<span class="highlight">$1</span>');
   }
-  function setProgress(indeterminate) {
-    const bar = document.getElementById('progress-bar');
-    if (indeterminate) {
-      bar.classList.add('indeterminate');
-    } else {
-      bar.classList.remove('indeterminate');
-      bar.style.width = '100%';
+
+  function formatBytes(bytes) {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+    let value = bytes;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+      value /= 1024;
+      unit += 1;
+    }
+    if (unit === 0) return `${Math.round(value)} ${units[unit]}`;
+    return `${value.toFixed(2)} ${units[unit]}`;
+  }
+
+  function formatElapsed(ms) {
+    const seconds = ms / 1000;
+    if (seconds < 60) return `${seconds.toFixed(1)}s`;
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    if (hours > 0) return `${hours}h ${minutes}m ${secs}s`;
+    return `${minutes}m ${secs}s`;
+  }
+
+  function copyText(value) {
+    navigator.clipboard.writeText(value).catch(() => {});
+  }
+
+  function closeEventSource() {
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
     }
   }
-  function updateStats(count, elapsed) {
-    document.getElementById('stat-results').textContent = count.toLocaleString();
-    document.getElementById('results-badge').textContent = count.toLocaleString();
-    if (elapsed) document.getElementById('stat-elapsed').textContent = elapsed;
+
+  function setStatus(status) {
+    const chip = $('status-chip');
+    chip.textContent = status;
+    chip.className = 'chip';
+    if (status === 'running' || status === 'done') chip.classList.add('active');
+    if (status === 'paused' || status === 'stopping') chip.classList.add('paused');
+    if (status === 'error') chip.classList.add('error');
   }
 
-  // ── Render page ───────────────────────────────────────
+  function updateButtons() {
+    $('btn-start').disabled = isRunning;
+    $('btn-pause').disabled = !isRunning || isStopping;
+    $('btn-stop').disabled = !isRunning || isStopping;
+    $('btn-export').disabled = totalMatchesFound === 0 || isRunning;
+    $('btn-clear').disabled = isRunning;
+    $('btn-pause').textContent = isPaused ? 'Resume' : 'Pause';
+    $('btn-stop').textContent = isStopping ? 'Stopping...' : 'Stop';
+  }
+
+  function updateResultCount(count) {
+    $('stat-results').textContent = count.toLocaleString();
+    $('results-badge').textContent = `${count.toLocaleString()} Found`;
+  }
+
+  function updateFilterCountDisplay() {
+    if (filteredPageItems !== null) {
+      $('filter-count').textContent = `${filteredPageItems.length.toLocaleString()} / ${pageItems.length.toLocaleString()} rows on this page`;
+      return;
+    }
+    $('filter-count').textContent = pageItems.length
+      ? `${pageItems.length.toLocaleString()} rows on this page`
+      : '';
+  }
+
+  function updateProgress(metrics) {
+    latestProgress = {
+      processedBytes: metrics.processedBytes ?? latestProgress.processedBytes,
+      totalBytes: metrics.totalBytes ?? latestProgress.totalBytes,
+      progress: metrics.progress ?? latestProgress.progress,
+      eta: metrics.eta ?? latestProgress.eta,
+      speedBytes: metrics.speedBytes ?? latestProgress.speedBytes,
+      filesDone: metrics.filesDone ?? latestProgress.filesDone,
+      totalFiles: metrics.totalFiles ?? latestProgress.totalFiles
+    };
+
+    const total = latestProgress.totalBytes || 0;
+    const processed = latestProgress.processedBytes || 0;
+    const progress = total > 0
+      ? Math.max(0, Math.min(100, latestProgress.progress || (processed / total) * 100))
+      : (isRunning ? 0 : latestProgress.progress || 0);
+
+    $('progress-bar').style.width = `${progress.toFixed(2)}%`;
+    $('progress-percent').textContent = `${progress.toFixed(1)}%`;
+    $('progress-io').textContent = `${formatBytes(processed)} / ${formatBytes(total)} (${progress.toFixed(1)}%)`;
+
+    let telemetry = `${formatBytes(latestProgress.speedBytes || 0)}/s`;
+    if (latestProgress.totalFiles) {
+      telemetry += ` · ${latestProgress.filesDone.toLocaleString()}/${latestProgress.totalFiles.toLocaleString()} files`;
+    }
+    telemetry += ` · ETA ${latestProgress.eta || '--'}`;
+    $('progress-telemetry').textContent = telemetry;
+  }
+
   function getSource() {
-    return filtered !== null ? filtered : allResults;
+    return filteredPageItems !== null ? filteredPageItems : pageItems;
   }
 
-  function renderPage(page) {
-    const src = getSource();
-    totalPages = Math.max(1, Math.ceil(src.length / PAGE_SIZE));
-    currentPage = Math.max(1, Math.min(page, totalPages));
+  function getLinePreview(line) {
+    if (line.length <= MAX_PREVIEW_CHARS) return line;
+    return `${line.slice(0, MAX_PREVIEW_CHARS)}...`;
+  }
 
-    const start = (currentPage - 1) * PAGE_SIZE;
-    const end   = Math.min(start + PAGE_SIZE, src.length);
-    const slice = src.slice(start, end);
+  function applyCurrentPageFilter() {
+    const keyword = $('filter-input').value.trim().toLowerCase();
+    if (!keyword) {
+      filteredPageItems = null;
+    } else {
+      filteredPageItems = pageItems.filter((line) => line.toLowerCase().includes(keyword));
+    }
+    updateFilterCountDisplay();
+  }
 
-    const body = document.getElementById('results-body');
+  function requestResultsPage(page = currentPage) {
+    const targetPage = Math.max(1, page || 1);
+    queuedPage = targetPage;
+    if (pageFetchInFlight) return;
 
-    // Empty state
-    if (src.length === 0) {
-      body.innerHTML = `<div class="empty-state">
-        <div class="empty-icon">🔍</div>
-        <div class="empty-title">No results${filtered !== null ? ' matching filter' : ''}.</div>
-      </div>`;
-      document.getElementById('pagination').style.display = 'none';
+    const nextPage = queuedPage;
+    queuedPage = null;
+    pageFetchInFlight = true;
+    const requestContext = pageContextVersion;
+    const requestId = ++pageRequestSerial;
+
+    fetch(`/results?page=${nextPage}&page_size=${PAGE_SIZE}`)
+      .then((response) => {
+        if (!response.ok) throw new Error('Failed to load results page.');
+        return response.json();
+      })
+      .then((payload) => {
+        if (requestContext !== pageContextVersion || requestId !== pageRequestSerial) return;
+        currentPage = payload.page || 1;
+        totalPages = payload.total_pages || 1;
+        totalMatchesFound = payload.total_count || 0;
+        pageItems = Array.isArray(payload.items) ? payload.items : [];
+        updateResultCount(totalMatchesFound);
+        applyCurrentPageFilter();
+        renderPage();
+      })
+      .catch((error) => {
+        if (requestContext !== pageContextVersion || requestId !== pageRequestSerial) return;
+        $('progress-status').textContent = `Error loading results page: ${error.message}`;
+      })
+      .finally(() => {
+        if (requestContext !== pageContextVersion || requestId !== pageRequestSerial) return;
+        pageFetchInFlight = false;
+        if (queuedPage !== null && queuedPage !== currentPage) {
+          requestResultsPage(queuedPage);
+        }
+      });
+  }
+
+  function schedulePageRefresh(page = currentPage) {
+    window.clearTimeout(pageRefreshTimer);
+    pageRefreshTimer = window.setTimeout(() => {
+      pageRefreshTimer = null;
+      requestResultsPage(page);
+    }, 140);
+  }
+
+  function refreshVisiblePageIfNeeded() {
+    const liveTotalPages = Math.max(1, Math.ceil(Math.max(totalMatchesFound, 1) / PAGE_SIZE));
+    totalPages = liveTotalPages;
+    if (currentPage === liveTotalPages || totalMatchesFound <= PAGE_SIZE) {
+      schedulePageRefresh(currentPage);
+    }
+  }
+
+  function renderPage() {
+    const source = getSource();
+    const resultsBody = $('results-body');
+
+    if (source.length === 0) {
+      const title = filteredPageItems !== null
+        ? 'No filtered matches'
+        : (searchQuery && !isRunning ? 'No matches found' : 'No results yet');
+      const subtitle = filteredPageItems !== null
+        ? 'Try another filter for the current page.'
+        : (searchQuery && !isRunning
+            ? 'Scan completed without finding matching lines.'
+            : 'Start a search to stream matching lines here.');
+      resultsBody.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-card">
+            <div class="empty-icon">🔍</div>
+            <div class="empty-title">${title}</div>
+            <div class="empty-subtitle">${subtitle}</div>
+          </div>
+        </div>`;
+      $('pagination').style.display = 'none';
       return;
     }
 
-    // Build rows — use DocumentFragment for performance
-    const frag = document.createDocumentFragment();
-    slice.forEach((line, i) => {
-      const globalNum = start + i + 1;
-      const div = document.createElement('div');
-      div.className = 'result-item';
-      div.innerHTML =
-        `<span class="result-num">${globalNum}</span>` +
-        `<span class="result-text">${highlight(escapeHtml(line), searchQuery)}</span>` +
-        `<button class="copy-btn" onclick="copyText(${JSON.stringify(line)})">📋</button>`;
-      frag.appendChild(div);
+    const fragment = document.createDocumentFragment();
+
+    source.forEach((line, index) => {
+      const previewLine = getLinePreview(line);
+      const row = document.createElement('div');
+      row.className = 'result-row';
+
+      const number = document.createElement('div');
+      number.className = 'result-index';
+      number.textContent = String(((currentPage - 1) * PAGE_SIZE) + index + 1);
+
+      const content = document.createElement('div');
+      content.className = 'result-text';
+      content.title = line.length > 1024 ? `${line.slice(0, 1024)}...` : line;
+      content.innerHTML = highlight(escapeHtml(previewLine), searchQuery);
+
+      const action = document.createElement('button');
+      action.className = 'copy-btn';
+      action.type = 'button';
+      action.textContent = 'Copy';
+      action.addEventListener('click', () => copyText(line));
+
+      row.appendChild(number);
+      row.appendChild(content);
+      row.appendChild(action);
+      fragment.appendChild(row);
     });
 
-    body.innerHTML = '';
-    body.appendChild(frag);
+    resultsBody.innerHTML = '';
+    resultsBody.appendChild(fragment);
 
-    // Pagination bar
-    document.getElementById('pagination').style.display = 'flex';
-    const info = `${(start+1).toLocaleString()}–${end.toLocaleString()} of ${src.length.toLocaleString()} results`;
-    document.getElementById('pagination-info').textContent = info;
-    document.getElementById('page-of').textContent = 'of ' + totalPages;
-    document.getElementById('page-jump').value = currentPage;
-    document.getElementById('btn-first').disabled = currentPage <= 1;
-    document.getElementById('btn-prev').disabled  = currentPage <= 1;
-    document.getElementById('btn-next').disabled  = currentPage >= totalPages;
-    document.getElementById('btn-last').disabled  = currentPage >= totalPages;
-
-    // Scroll hasil ke atas saat ganti halaman
-    document.getElementById('results-section').scrollTop = 0;
-  }
-
-  function goPage(p) {
-    renderPage(p);
-  }
-
-  // ── Filter ────────────────────────────────────────────
-  function onFilter() {
-    const kw = document.getElementById('filter-input').value.trim().toLowerCase();
-    if (kw === '') {
-      filtered = null;
-      document.getElementById('filter-count').textContent = '';
-    } else {
-      filtered = allResults.filter(l => l.toLowerCase().includes(kw));
-      document.getElementById('filter-count').textContent =
-        filtered.length.toLocaleString() + ' / ' + allResults.length.toLocaleString();
+    $('pagination').style.display = 'flex';
+    const startIndex = totalMatchesFound === 0 ? 0 : ((currentPage - 1) * PAGE_SIZE) + 1;
+    const endIndex = totalMatchesFound === 0
+      ? 0
+      : ((currentPage - 1) * PAGE_SIZE) + pageItems.length;
+    let info = `${startIndex.toLocaleString()}-${endIndex.toLocaleString()} of ${totalMatchesFound.toLocaleString()} results`;
+    if (filteredPageItems !== null) {
+      info += ` · filtered ${filteredPageItems.length.toLocaleString()} rows on this page`;
     }
-    renderPage(1);
+    $('pagination-info').textContent = info;
+    $('page-of').textContent = `of ${totalPages}`;
+    $('page-jump').value = currentPage;
+    $('btn-first').disabled = currentPage <= 1;
+    $('btn-prev').disabled = currentPage <= 1;
+    $('btn-next').disabled = currentPage >= totalPages;
+    $('btn-last').disabled = currentPage >= totalPages;
   }
 
-  // ── Search ────────────────────────────────────────────
-  function startSearch() {
-    searchQuery = document.getElementById('query-input').value.trim();
-    if (!searchQuery) { alert('Enter a search keyword.'); return; }
+  function goPage(page) {
+    const targetPage = Math.max(1, Math.min(page || 1, totalPages));
+    requestResultsPage(targetPage);
+  }
 
-    const dir = document.getElementById('dir-input').value.trim()
-      || 'C:\\Users\\rdp\\Desktop\\backup\\X-LOGS-main\\ulp\\downloads';
-    const max = document.getElementById('max-input').value || '10000';
+  function onFilter() {
+    applyCurrentPageFilter();
+    renderPage();
+  }
 
-    // Reset state
-    allResults  = [];
-    filtered    = null;
+  function resetSearchView() {
+    pageContextVersion += 1;
+    pageItems = [];
+    filteredPageItems = null;
     currentPage = 1;
-    lastCount   = 0;
-    isPaused    = false;
+    totalPages = 1;
+    totalMatchesFound = 0;
+    pageFetchInFlight = false;
+    queuedPage = null;
+    window.clearTimeout(pageRefreshTimer);
+    pageRefreshTimer = null;
+    lastCount = 0;
+    $('filter-input').value = '';
+    $('query-chip').textContent = searchQuery ? `Query: ${searchQuery}` : 'No active query';
+    updateResultCount(0);
+    updateFilterCountDisplay();
+    renderPage();
+  }
 
-    document.getElementById('stat-dirs').textContent = dir.split(/[\\/]/).pop() || dir;
-    document.getElementById('filter-input').value = '';
-    document.getElementById('filter-count').textContent = '';
-    document.getElementById('results-body').innerHTML = `<div class="empty-state" id="empty-state">
-      <div class="empty-icon">🗂</div><div class="empty-title">Searching...</div></div>`;
-    document.getElementById('pagination').style.display = 'none';
-
-    updateStats(0, '0ms');
-    document.getElementById('stat-speed').textContent = '—';
-
-    document.getElementById('btn-start').disabled  = true;
-    document.getElementById('btn-pause').disabled  = false;
-    document.getElementById('btn-cancel').disabled = false;
-    document.getElementById('btn-export').disabled = true;
-    document.getElementById('btn-pause').textContent = '⏸ Pause';
-
-    setStatus('running');
-    setProgress(true);
-    document.getElementById('progress-status').textContent = 'Searching...';
-
-    startTime = Date.now();
-    speedTimer = setInterval(() => {
-      const rps = allResults.length - lastCount;
-      lastCount = allResults.length;
-      document.getElementById('stat-speed').textContent = rps.toLocaleString();
-
-      const elapsedSec = (Date.now() - startTime) / 1000;
-      document.getElementById('stat-elapsed').textContent = elapsedSec.toFixed(1) + 's';
-
-      // ETA — pure JS math, zero overhead
-      const maxResult = parseInt(document.getElementById('max-input').value) || 10000;
-      let etaText = '';
-      if (rps > 0 && elapsedSec > 3 && allResults.length < maxResult) {
-        const etaSec = (maxResult - allResults.length) / rps;
-        if (etaSec < 60) {
-          etaText = ' · ETA ~' + Math.ceil(etaSec) + 's';
-        } else {
-          const m = Math.floor(etaSec / 60), s = Math.ceil(etaSec % 60);
-          etaText = ' · ETA ~' + m + 'm ' + s + 's';
-        }
-      }
-
-      const status = document.getElementById('progress-status');
-      if (status.textContent.startsWith('Search') || status.textContent.includes('ETA')) {
-        status.textContent = 'Searching... ' + allResults.length.toLocaleString() + ' found' + etaText;
+  function startSpeedTimer() {
+    clearInterval(speedTimer);
+    speedTimer = window.setInterval(() => {
+      const resultsPerSecond = totalMatchesFound - lastCount;
+      lastCount = totalMatchesFound;
+      $('stat-speed').textContent = resultsPerSecond.toLocaleString();
+      if (searchStartedAt) {
+        $('stat-elapsed').textContent = formatElapsed(Date.now() - searchStartedAt);
       }
     }, 1000);
+  }
 
-    const url = `/search?query=${encodeURIComponent(searchQuery)}&directory=${encodeURIComponent(dir)}&max=${max}`;
-    eventSource = new EventSource(url);
+  function stopSpeedTimer() {
+    clearInterval(speedTimer);
+    speedTimer = null;
+  }
 
-    eventSource.onmessage = (e) => {
-      const ev = JSON.parse(e.data);
+  function startSearch() {
+    searchQuery = $('query-input').value.trim();
+    if (!searchQuery) {
+      alert('Enter a search keyword first.');
+      return;
+    }
 
-      if (ev.type === 'result') {
-        allResults.push(ev.data);
-        updateStats(allResults.length, ev.elapsed);
+    closeEventSource();
+    isRunning = true;
+    isPaused = false;
+    isStopping = false;
+    searchStartedAt = Date.now();
 
-        // Auto-render: update page saat ini kalau user ada di halaman terakhir
-        // atau baru mulai (halaman 1 belum penuh)
-        const src = getSource();
-        const newTotal = Math.max(1, Math.ceil(src.length / PAGE_SIZE));
-        if (currentPage === newTotal || src.length <= PAGE_SIZE) {
-          renderPage(currentPage);
-        }
+    resetSearchView();
+    updateButtons();
+    setStatus('running');
+    $('progress-status').textContent = 'Preparing scan...';
+    $('stat-elapsed').textContent = '0.0s';
+    $('stat-speed').textContent = '0';
+    updateProgress({
+      processedBytes: 0,
+      totalBytes: latestProgress.totalBytes,
+      progress: 0,
+      eta: '--',
+      speedBytes: 0,
+      filesDone: 0,
+      totalFiles: latestProgress.totalFiles
+    });
 
-      } else if (ev.type === 'done') {
-        onSearchDone(ev);
-      } else if (ev.type === 'cancelled') {
-        onSearchCancelled(ev);
-      } else if (ev.type === 'error') {
-        onSearchError(ev.data);
-      }
-    };
+    startSpeedTimer();
 
+    eventSource = new EventSource(`/search?query=${encodeURIComponent(searchQuery)}`);
+    eventSource.onmessage = handleSSEMessage;
     eventSource.onerror = () => {
-      if (eventSource.readyState === EventSource.CLOSED) {
-        onSearchDone({ count: allResults.length, elapsed: ((Date.now()-startTime)/1000).toFixed(1)+'s' });
-      }
+      if (!isRunning || isStopping) return;
+      closeEventSource();
+      onSearchError('Search stream disconnected.');
     };
   }
 
-  function onSearchDone(ev) {
-    clearInterval(speedTimer);
-    eventSource && eventSource.close();
+  function handleSSEMessage(event) {
+    const payload = JSON.parse(event.data);
+
+    if (payload.type === 'start') {
+      updateProgress({
+        processedBytes: payload.processed_bytes || 0,
+        totalBytes: payload.total_bytes || latestProgress.totalBytes,
+        progress: payload.progress || 0,
+        eta: payload.eta || '--',
+        speedBytes: payload.speed_bytes || 0,
+        filesDone: payload.files_done || 0,
+        totalFiles: payload.total_files || latestProgress.totalFiles
+      });
+      $('progress-status').textContent = 'Scanning files...';
+      if (payload.total_files) $('stat-total-logs').textContent = payload.total_files.toLocaleString();
+      requestResultsPage(1);
+      return;
+    }
+
+    if (payload.type === 'progress') {
+      updateProgress({
+        processedBytes: payload.processed_bytes,
+        totalBytes: payload.total_bytes,
+        progress: payload.progress,
+        eta: payload.eta,
+        speedBytes: payload.speed_bytes,
+        filesDone: payload.files_done,
+        totalFiles: payload.total_files
+      });
+      if (!isPaused) {
+        $('progress-status').textContent = `Scanning... ${payload.files_done.toLocaleString()}/${payload.total_files.toLocaleString()} files`;
+      }
+      if (payload.elapsed) $('stat-elapsed').textContent = payload.elapsed;
+      if (typeof payload.count === 'number') {
+        totalMatchesFound = Math.max(totalMatchesFound, payload.count);
+        updateResultCount(totalMatchesFound);
+        refreshVisiblePageIfNeeded();
+      }
+      return;
+    }
+
+    if (payload.type === 'result') {
+      if (typeof payload.count === 'number') {
+        totalMatchesFound = Math.max(totalMatchesFound, payload.count);
+        updateResultCount(totalMatchesFound);
+        refreshVisiblePageIfNeeded();
+      }
+      if (payload.elapsed) $('stat-elapsed').textContent = payload.elapsed;
+      return;
+    }
+
+    if (payload.type === 'done') {
+      onSearchDone(payload);
+      return;
+    }
+
+    if (payload.type === 'cancelled') {
+      onSearchCancelled(payload);
+      return;
+    }
+
+    if (payload.type === 'error') {
+      onSearchError(payload.data || 'Unknown error');
+    }
+  }
+
+  function onSearchDone(payload) {
+    if (typeof payload.count === 'number') {
+      totalMatchesFound = Math.max(totalMatchesFound, payload.count);
+    }
+    isRunning = false;
+    isPaused = false;
+    isStopping = false;
+    stopSpeedTimer();
+    closeEventSource();
+
+    updateProgress({
+      processedBytes: payload.processed_bytes ?? latestProgress.totalBytes,
+      totalBytes: payload.total_bytes ?? latestProgress.totalBytes,
+      progress: 100,
+      eta: '0s',
+      speedBytes: payload.speed_bytes ?? latestProgress.speedBytes,
+      filesDone: payload.files_done ?? latestProgress.totalFiles,
+      totalFiles: payload.total_files ?? latestProgress.totalFiles
+    });
+
+    $('progress-status').textContent = `Completed ${totalMatchesFound.toLocaleString()} matches in ${payload.elapsed || $('stat-elapsed').textContent}.`;
+    if (payload.elapsed) $('stat-elapsed').textContent = payload.elapsed;
+    $('stat-speed').textContent = '0';
     setStatus('done');
-    setProgress(false);
-    document.getElementById('progress-status').textContent =
-      `Done — ${allResults.length.toLocaleString()} results in ${ev.elapsed || ''}`;
-    document.getElementById('btn-start').disabled  = false;
-    document.getElementById('btn-pause').disabled  = true;
-    document.getElementById('btn-cancel').disabled = true;
-    document.getElementById('btn-export').disabled = allResults.length === 0;
-    document.getElementById('stat-speed').textContent = '—';
-    renderPage(currentPage);
+    updateButtons();
+    requestResultsPage(currentPage);
   }
 
-  function onSearchCancelled(ev) {
-    clearInterval(speedTimer);
-    eventSource && eventSource.close();
+  function onSearchCancelled(payload) {
+    if (typeof payload.count === 'number') {
+      totalMatchesFound = Math.max(totalMatchesFound, payload.count);
+    }
+    isRunning = false;
+    isPaused = false;
+    isStopping = false;
+    stopSpeedTimer();
+    closeEventSource();
+
+    updateProgress({
+      processedBytes: payload.processed_bytes ?? latestProgress.processedBytes,
+      totalBytes: payload.total_bytes ?? latestProgress.totalBytes,
+      progress: payload.progress ?? latestProgress.progress,
+      eta: 'stopped',
+      speedBytes: payload.speed_bytes ?? latestProgress.speedBytes,
+      filesDone: payload.files_done ?? latestProgress.filesDone,
+      totalFiles: payload.total_files ?? latestProgress.totalFiles
+    });
+
+    $('progress-status').textContent = `Stopped with ${totalMatchesFound.toLocaleString()} matches collected.`;
+    if (payload.elapsed) $('stat-elapsed').textContent = payload.elapsed;
+    $('stat-speed').textContent = '0';
     setStatus('idle');
-    document.getElementById('progress-bar').classList.remove('indeterminate');
-    document.getElementById('progress-bar').style.width = '0%';
-    document.getElementById('progress-status').textContent =
-      `Cancelled — ${allResults.length.toLocaleString()} results`;
-    document.getElementById('btn-start').disabled  = false;
-    document.getElementById('btn-pause').disabled  = true;
-    document.getElementById('btn-cancel').disabled = true;
-    document.getElementById('btn-export').disabled = allResults.length === 0;
-    document.getElementById('stat-speed').textContent = '—';
-    renderPage(currentPage);
+    updateButtons();
+    requestResultsPage(currentPage);
   }
 
-  function onSearchError(msg) {
-    clearInterval(speedTimer);
+  function onSearchError(message) {
+    isRunning = false;
+    isPaused = false;
+    isStopping = false;
+    stopSpeedTimer();
+    closeEventSource();
+    $('progress-status').textContent = `Error: ${message}`;
+    $('stat-speed').textContent = '0';
     setStatus('error');
-    document.getElementById('progress-bar').classList.remove('indeterminate');
-    document.getElementById('progress-status').textContent = 'Error: ' + msg;
-    document.getElementById('btn-start').disabled  = false;
-    document.getElementById('btn-pause').disabled  = true;
-    document.getElementById('btn-cancel').disabled = true;
-    alert('Error: ' + msg);
+    updateButtons();
+    alert(`Error: ${message}`);
   }
 
   function togglePause() {
-    fetch('/pause').then(r => r.json()).then(data => {
-      isPaused = data.status === 'paused';
-      document.getElementById('btn-pause').textContent = isPaused ? '▶ Resume' : '⏸ Pause';
-      setStatus(isPaused ? 'paused' : 'running');
-      document.getElementById('progress-status').textContent = isPaused ? 'Paused...' : 'Searching...';
-      if (isPaused) {
-        document.getElementById('progress-bar').classList.remove('indeterminate');
-      } else {
-        document.getElementById('progress-bar').classList.add('indeterminate');
-      }
-    });
+    fetch('/pause')
+      .then((response) => response.json())
+      .then((payload) => {
+        isPaused = payload.status === 'paused';
+        setStatus(isPaused ? 'paused' : 'running');
+        $('progress-status').textContent = isPaused ? 'Paused. Search workers are waiting.' : 'Scanning files...';
+        updateButtons();
+      })
+      .catch(() => onSearchError('Failed to toggle pause.'));
   }
 
   function cancelSearch() {
-    fetch('/cancel').then(() => {
-      eventSource && eventSource.close();
-      clearInterval(speedTimer);
-    });
+    if (!isRunning || isStopping) return;
+    isStopping = true;
+    setStatus('stopping');
+    $('progress-status').textContent = 'Stopping scan...';
+    updateButtons();
+
+    fetch('/cancel')
+      .then((response) => response.json())
+      .catch(() => onSearchError('Failed to stop the search.'));
   }
 
-  function exportResults() { window.location.href = '/export'; }
+  function exportResults() {
+    window.location.href = '/export';
+  }
 
   function clearResults() {
-    allResults  = [];
-    filtered    = null;
+    if (isRunning) return;
+    pageContextVersion += 1;
+    searchQuery = '';
+    pageItems = [];
+    filteredPageItems = null;
     currentPage = 1;
-    document.getElementById('results-body').innerHTML = `<div class="empty-state">
-      <div class="empty-icon">🗂</div>
-      <div class="empty-title">Ready to search.</div>
-      <div class="empty-sub">Enter a keyword above to begin scanning.</div>
-    </div>`;
-    document.getElementById('pagination').style.display = 'none';
-    document.getElementById('filter-input').value = '';
-    document.getElementById('filter-count').textContent = '';
-    updateStats(0, '0ms');
-    document.getElementById('btn-export').disabled = true;
+    totalPages = 1;
+    totalMatchesFound = 0;
+    pageFetchInFlight = false;
+    queuedPage = null;
+    window.clearTimeout(pageRefreshTimer);
+    pageRefreshTimer = null;
+    $('query-chip').textContent = 'No active query';
+    $('filter-input').value = '';
+    $('progress-status').textContent = 'Ready to search.';
+    updateResultCount(0);
+    updateFilterCountDisplay();
+    $('stat-speed').textContent = '0';
+    $('stat-elapsed').textContent = '0.0s';
+    updateProgress({
+      processedBytes: 0,
+      totalBytes: latestProgress.totalBytes,
+      progress: 0,
+      eta: '--',
+      speedBytes: 0,
+      filesDone: 0,
+      totalFiles: latestProgress.totalFiles
+    });
     setStatus('idle');
+    updateButtons();
+    renderPage();
   }
 
-  document.getElementById('query-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !document.getElementById('btn-start').disabled) startSearch();
+  function loadDirectoryStats() {
+    fetch('/stats')
+      .then((response) => {
+        if (!response.ok) throw new Error('Failed to load directory stats.');
+        return response.json();
+      })
+      .then((stats) => {
+        $('stat-dirs').textContent = stats.directory_name || '--';
+        $('directory-path').textContent = stats.directory || '--';
+        $('stat-total-logs').textContent = (stats.total_logs || 0).toLocaleString();
+        $('stat-total-size').textContent = stats.total_size || '--';
+        $('stat-total-lines').textContent = stats.estimated_lines_text || '--';
+
+        latestProgress.totalBytes = stats.total_size_bytes || 0;
+        latestProgress.totalFiles = stats.total_logs || 0;
+        updateProgress({
+          processedBytes: 0,
+          totalBytes: stats.total_size_bytes || 0,
+          progress: 0,
+          eta: '--',
+          speedBytes: 0,
+          filesDone: 0,
+          totalFiles: stats.total_logs || 0
+        });
+      })
+      .catch((error) => {
+        $('directory-path').textContent = `Failed to load stats: ${error.message}`;
+        $('progress-status').textContent = 'Directory stats unavailable.';
+      });
+  }
+
+  $('query-input').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !isRunning) {
+      startSearch();
+    }
   });
+
+  updateButtons();
+  setStatus('idle');
+  renderPage();
+  loadDirectoryStats();
 </script>
 </body>
 </html>
