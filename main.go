@@ -45,6 +45,10 @@ const (
 	maxUgrepBatchFiles   = 256
 	maxUgrepBatchBytes   = 16 << 30
 	maxUgrepCommandChars = 28000
+	nativeReadBufferSize = 32 << 20
+	nativeMaxWorkers     = 48
+	nativePauseStride    = 256
+	resultChannelBuffer  = 1024
 )
 
 var (
@@ -179,6 +183,13 @@ type searchOutputFile struct {
 	lastFlush time.Time
 }
 
+type bytePatternMatcher struct {
+	pattern    []byte
+	lowerQuery string
+	asciiOnly  bool
+	skip       [256]int
+}
+
 var (
 	state          = newSearchState()
 	statsOnce      sync.Once
@@ -215,6 +226,114 @@ func getCMSRules() ([]CMSRule, error) {
 		cachedCMSRules, cmsRulesErr = loadCMSRules(filepath.Join(".", "rules.json"))
 	})
 	return cachedCMSRules, cmsRulesErr
+}
+
+func newBytePatternMatcher(query string) *bytePatternMatcher {
+	lowerQuery := strings.ToLower(query)
+	matcher := &bytePatternMatcher{
+		pattern:    []byte(lowerQuery),
+		lowerQuery: lowerQuery,
+		asciiOnly:  true,
+	}
+
+	for i := range matcher.skip {
+		matcher.skip[i] = len(matcher.pattern)
+	}
+
+	for _, b := range matcher.pattern {
+		if b >= 0x80 {
+			matcher.asciiOnly = false
+			break
+		}
+	}
+
+	if len(matcher.pattern) == 0 {
+		return matcher
+	}
+
+	last := len(matcher.pattern) - 1
+	for i := 0; i < last; i++ {
+		matcher.skip[matcher.pattern[i]] = last - i
+	}
+
+	return matcher
+}
+
+func (m *bytePatternMatcher) Contains(data []byte) bool {
+	return m.Index(data) >= 0
+}
+
+func (m *bytePatternMatcher) Index(data []byte) int {
+	if len(m.pattern) == 0 {
+		return 0
+	}
+	if len(data) < len(m.pattern) {
+		return -1
+	}
+	if !m.asciiOnly {
+		return bytes.Index(bytes.ToLower(data), m.pattern)
+	}
+
+	last := len(m.pattern) - 1
+	for offset := 0; offset <= len(data)-len(m.pattern); {
+		index := last
+		for index >= 0 && lowerASCIIByte(data[offset+index]) == m.pattern[index] {
+			index--
+		}
+		if index < 0 {
+			return offset
+		}
+
+		skip := m.skip[lowerASCIIByte(data[offset+last])]
+		if skip < 1 {
+			skip = 1
+		}
+		offset += skip
+	}
+
+	return -1
+}
+
+func (m *bytePatternMatcher) ContainsString(value string) bool {
+	return m.IndexString(value) >= 0
+}
+
+func (m *bytePatternMatcher) IndexString(value string) int {
+	if len(m.pattern) == 0 {
+		return 0
+	}
+	if len(value) < len(m.pattern) {
+		return -1
+	}
+	if !m.asciiOnly {
+		return strings.Index(strings.ToLower(value), m.lowerQuery)
+	}
+
+	last := len(m.pattern) - 1
+	for offset := 0; offset <= len(value)-len(m.pattern); {
+		index := last
+		for index >= 0 && lowerASCIIByte(value[offset+index]) == m.pattern[index] {
+			index--
+		}
+		if index < 0 {
+			return offset
+		}
+
+		skip := m.skip[lowerASCIIByte(value[offset+last])]
+		if skip < 1 {
+			skip = 1
+		}
+		offset += skip
+	}
+
+	return -1
+}
+
+func lowerASCIIByte(value byte) byte {
+	if value >= 'A' && value <= 'Z' {
+		return value + ('a' - 'A')
+	}
+	return value
 }
 
 func loadCMSRules(path string) ([]CMSRule, error) {
@@ -693,13 +812,13 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resultCh := make(chan string, 256)
+	resultCh := make(chan string, resultChannelBuffer)
 	errCh := make(chan error, 1)
 
 	var processedBytes int64
 	var filesDone int64
-	lowerQuery := strings.ToLower(query)
-	startSearchEngine(ctx, engine, query, lowerQuery, stats.Files, resultCh, errCh, &processedBytes, &filesDone)
+	matcher := newBytePatternMatcher(query)
+	startSearchEngine(ctx, engine, query, matcher, stats.Files, resultCh, errCh, &processedBytes, &filesDone)
 
 	progressTicker := time.NewTicker(300 * time.Millisecond)
 	defer progressTicker.Stop()
@@ -795,14 +914,14 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	))
 }
 
-func startSearchEngine(ctx context.Context, engine, query, lowerQuery string, files []FileMeta, resultCh chan string, errCh chan error, processedBytes *int64, filesDone *int64) {
+func startSearchEngine(ctx context.Context, engine, query string, matcher *bytePatternMatcher, files []FileMeta, resultCh chan string, errCh chan error, processedBytes *int64, filesDone *int64) {
 	switch engine {
 	case engineNative:
-		startNativeWorkers(ctx, lowerQuery, files, resultCh, processedBytes, filesDone)
+		startNativeWorkers(ctx, matcher, files, resultCh, processedBytes, filesDone)
 	case engineUgrep:
-		go runUgrepBatches(ctx, query, lowerQuery, files, resultCh, errCh, processedBytes, filesDone, false)
+		go runUgrepBatches(ctx, query, matcher, files, resultCh, errCh, processedBytes, filesDone, false)
 	case engineHybrid:
-		go runUgrepBatches(ctx, query, lowerQuery, files, resultCh, errCh, processedBytes, filesDone, true)
+		go runUgrepBatches(ctx, query, matcher, files, resultCh, errCh, processedBytes, filesDone, true)
 	default:
 		go func() {
 			defer close(resultCh)
@@ -814,26 +933,32 @@ func startSearchEngine(ctx context.Context, engine, query, lowerQuery string, fi
 	}
 }
 
-func startNativeWorkers(ctx context.Context, lowerQuery string, files []FileMeta, resultCh chan string, processedBytes *int64, filesDone *int64) {
-	fileCh := make(chan FileMeta, minInt(len(files), maxInt(2, runtime.NumCPU()*2)))
-	var wg sync.WaitGroup
+func startNativeWorkers(ctx context.Context, matcher *bytePatternMatcher, files []FileMeta, resultCh chan string, processedBytes *int64, filesDone *int64) {
+	sortedFiles := filesBySizeDesc(files)
 
-	workerCount := minInt(runtime.NumCPU(), len(files))
+	workerCount := minInt(minInt(runtime.NumCPU()*2, nativeMaxWorkers), len(sortedFiles))
 	if workerCount < 1 {
 		workerCount = 1
 	}
+
+	fileBufferSize := minInt(len(sortedFiles), maxInt(workerCount*8, 256))
+	if fileBufferSize < 1 {
+		fileBufferSize = 1
+	}
+	fileCh := make(chan FileMeta, fileBufferSize)
+	var wg sync.WaitGroup
 
 	for i := 0; i < workerCount; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			searchWorker(ctx, lowerQuery, fileCh, resultCh, processedBytes, filesDone)
+			searchWorker(ctx, matcher, fileCh, resultCh, processedBytes, filesDone)
 		}()
 	}
 
 	go func() {
 		defer close(fileCh)
-		for _, file := range files {
+		for _, file := range sortedFiles {
 			select {
 			case <-ctx.Done():
 				return
@@ -848,7 +973,7 @@ func startNativeWorkers(ctx context.Context, lowerQuery string, files []FileMeta
 	}()
 }
 
-func runUgrepBatches(ctx context.Context, query, lowerQuery string, files []FileMeta, resultCh chan string, errCh chan error, processedBytes *int64, filesDone *int64, hybrid bool) {
+func runUgrepBatches(ctx context.Context, query string, matcher *bytePatternMatcher, files []FileMeta, resultCh chan string, errCh chan error, processedBytes *int64, filesDone *int64, hybrid bool) {
 	defer close(resultCh)
 
 	batches := buildUgrepBatches(files)
@@ -859,7 +984,7 @@ func runUgrepBatches(ctx context.Context, query, lowerQuery string, files []File
 		if !state.waitIfPaused(ctx) {
 			return
 		}
-		if err := runUgrepBatch(ctx, query, lowerQuery, batch, resultCh, hybrid); err != nil {
+		if err := runUgrepBatch(ctx, query, matcher, batch, resultCh, hybrid); err != nil {
 			select {
 			case errCh <- err:
 			default:
@@ -904,7 +1029,23 @@ func buildUgrepBatches(files []FileMeta) []SearchBatch {
 	return batches
 }
 
-func runUgrepBatch(ctx context.Context, query, lowerQuery string, batch SearchBatch, resultCh chan<- string, hybrid bool) error {
+func filesBySizeDesc(files []FileMeta) []FileMeta {
+	if len(files) < 2 {
+		return append([]FileMeta(nil), files...)
+	}
+
+	sortedFiles := append([]FileMeta(nil), files...)
+	sort.Slice(sortedFiles, func(i, j int) bool {
+		if sortedFiles[i].Size == sortedFiles[j].Size {
+			return sortedFiles[i].Path < sortedFiles[j].Path
+		}
+		return sortedFiles[i].Size > sortedFiles[j].Size
+	})
+
+	return sortedFiles
+}
+
+func runUgrepBatch(ctx context.Context, query string, matcher *bytePatternMatcher, batch SearchBatch, resultCh chan<- string, hybrid bool) error {
 	args := []string{
 		"-F",
 		"-i",
@@ -945,7 +1086,7 @@ func runUgrepBatch(ctx context.Context, query, lowerQuery string, batch SearchBa
 			line := strings.TrimRight(strings.ToValidUTF8(string(rawLine), " "), "\r\n")
 			var output string
 			if hybrid {
-				normalized, ok := normalizeMatchedLine([]byte(line), lowerQuery)
+				normalized, ok := normalizeMatchedLine([]byte(line), matcher)
 				if !ok {
 					goto nextLine
 				}
@@ -981,7 +1122,7 @@ func runUgrepBatch(ctx context.Context, query, lowerQuery string, batch SearchBa
 	return nil
 }
 
-func searchWorker(ctx context.Context, lowerQuery string, fileCh <-chan FileMeta, resultCh chan<- string, processedBytes *int64, filesDone *int64) {
+func searchWorker(ctx context.Context, matcher *bytePatternMatcher, fileCh <-chan FileMeta, resultCh chan<- string, processedBytes *int64, filesDone *int64) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -994,14 +1135,14 @@ func searchWorker(ctx context.Context, lowerQuery string, fileCh <-chan FileMeta
 			if !state.waitIfPaused(ctx) {
 				return
 			}
-			if searchFile(ctx, lowerQuery, file, resultCh, processedBytes) {
+			if searchFile(ctx, matcher, file, resultCh, processedBytes) {
 				atomic.AddInt64(filesDone, 1)
 			}
 		}
 	}
 }
 
-func searchFile(ctx context.Context, lowerQuery string, file FileMeta, resultCh chan<- string, processedBytes *int64) bool {
+func searchFile(ctx context.Context, matcher *bytePatternMatcher, file FileMeta, resultCh chan<- string, processedBytes *int64) bool {
 	f, err := os.Open(file.Path)
 	if err != nil {
 		atomic.AddInt64(processedBytes, file.Size)
@@ -1009,8 +1150,10 @@ func searchFile(ctx context.Context, lowerQuery string, file FileMeta, resultCh 
 	}
 	defer f.Close()
 
-	reader := bufio.NewReaderSize(f, 1<<20)
+	readBuffer := make([]byte, nativeReadBufferSize)
+	carry := make([]byte, 0, 1<<20)
 	var bytesRead int64
+	var lineCounter int
 
 	for {
 		if state.cancelled.Load() || ctx.Err() != nil {
@@ -1020,22 +1163,74 @@ func searchFile(ctx context.Context, lowerQuery string, file FileMeta, resultCh 
 			return false
 		}
 
-		rawLine, err := reader.ReadBytes('\n')
-		if len(rawLine) > 0 {
-			bytesRead += int64(len(rawLine))
-			atomic.AddInt64(processedBytes, int64(len(rawLine)))
+		n, err := f.Read(readBuffer)
+		if n > 0 {
+			bytesRead += int64(n)
+			atomic.AddInt64(processedBytes, int64(n))
 
-			line, ok := normalizeMatchedLine(rawLine, lowerQuery)
-			if ok {
-				select {
-				case <-ctx.Done():
-					return false
-				case resultCh <- line:
+			data := readBuffer[:n]
+			if len(carry) > 0 {
+				merged := make([]byte, len(carry)+len(data))
+				copy(merged, carry)
+				copy(merged[len(carry):], data)
+				data = merged
+				carry = carry[:0]
+			}
+
+			start := 0
+			for start < len(data) {
+				newlineOffset := bytes.IndexByte(data[start:], '\n')
+				if newlineOffset < 0 {
+					break
 				}
+
+				lineEnd := start + newlineOffset
+				line := data[start:lineEnd]
+				if len(line) > 0 && line[len(line)-1] == '\r' {
+					line = line[:len(line)-1]
+				}
+				if matcher.Contains(line) {
+					normalized, ok := normalizeMatchedLine(line, matcher)
+					if ok {
+						select {
+						case <-ctx.Done():
+							return false
+						case resultCh <- normalized:
+						}
+					}
+				}
+
+				lineCounter++
+				if lineCounter%nativePauseStride == 0 {
+					if state.cancelled.Load() || ctx.Err() != nil {
+						return false
+					}
+					if !state.waitIfPaused(ctx) {
+						return false
+					}
+				}
+
+				start = lineEnd + 1
+			}
+
+			if start < len(data) {
+				carry = append(carry[:0], data[start:]...)
+			} else {
+				carry = carry[:0]
 			}
 		}
 
 		if err == io.EOF {
+			if len(carry) > 0 && matcher.Contains(carry) {
+				normalized, ok := normalizeMatchedLine(carry, matcher)
+				if ok {
+					select {
+					case <-ctx.Done():
+						return false
+					case resultCh <- normalized:
+					}
+				}
+			}
 			if bytesRead < file.Size {
 				atomic.AddInt64(processedBytes, file.Size-bytesRead)
 			}
@@ -1050,7 +1245,7 @@ func searchFile(ctx context.Context, lowerQuery string, file FileMeta, resultCh 
 	}
 }
 
-func normalizeMatchedLine(rawLine []byte, lowerQuery string) (string, bool) {
+func normalizeMatchedLine(rawLine []byte, matcher *bytePatternMatcher) (string, bool) {
 	line := strings.TrimRight(strings.ToValidUTF8(string(rawLine), " "), "\r\n")
 	if line == "" {
 		return "", false
@@ -1087,7 +1282,7 @@ func normalizeMatchedLine(rawLine []byte, lowerQuery string) (string, bool) {
 	if normalized == "" {
 		return "", false
 	}
-	if !strings.Contains(strings.ToLower(normalized), lowerQuery) {
+	if !matcher.ContainsString(normalized) {
 		return "", false
 	}
 	if !containsRelevantToken(normalized) {
@@ -1098,12 +1293,12 @@ func normalizeMatchedLine(rawLine []byte, lowerQuery string) (string, bool) {
 	if normalized == "" {
 		return "", false
 	}
-	if !strings.Contains(strings.ToLower(normalized), lowerQuery) {
+	if !matcher.ContainsString(normalized) {
 		return "", false
 	}
 
 	if len([]rune(normalized)) > maxStoredLineRunes {
-		normalized = shrinkResultLine(normalized, lowerQuery)
+		normalized = shrinkResultLine(normalized, matcher.lowerQuery)
 	}
 
 	return normalized, true
