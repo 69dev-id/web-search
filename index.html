@@ -407,6 +407,13 @@
     flex-wrap: wrap;
   }
 
+  .monitor-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
   .monitor-copy {
     display: flex;
     flex-direction: column;
@@ -429,6 +436,13 @@
     color: rgba(141, 162, 198, 0.8);
     margin-bottom: 12px;
     word-break: break-all;
+  }
+
+  .monitor-summary {
+    min-height: 18px;
+    margin-bottom: 12px;
+    color: var(--muted);
+    font-size: 12px;
   }
 
   .monitor-list {
@@ -483,6 +497,31 @@
     font-size: 13px;
     text-align: center;
     padding: 20px;
+  }
+
+  .monitor-sort-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+  }
+
+  .monitor-sort {
+    min-width: 180px;
+    border-radius: 12px;
+    border: 1px solid rgba(101, 128, 171, 0.2);
+    background: rgba(8, 15, 26, 0.85);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 9px 12px;
+    outline: none;
+  }
+
+  .monitor-toggle-btn[hidden] {
+    display: none;
   }
 
   .results-header {
@@ -865,9 +904,20 @@
         <span class="chip" id="monitor-panels-chip">0 Categories</span>
         <span class="chip" id="monitor-lines-chip">0 Matched Lines</span>
       </div>
+      <div class="monitor-actions">
+        <label class="monitor-sort-wrap" for="monitor-sort">
+          <span>Sort by</span>
+          <select class="monitor-sort" id="monitor-sort">
+            <option value="count_desc" selected>Jumlah terbanyak</option>
+            <option value="name_asc">Nama A-Z</option>
+          </select>
+        </label>
+        <button class="page-btn monitor-toggle-btn" id="monitor-toggle" type="button" onclick="toggleMonitorExpanded()" hidden>Read more</button>
+      </div>
     </div>
     <div class="monitor-body">
       <div class="monitor-output-path" id="monitor-output-path">Filter output: --</div>
+      <div class="monitor-summary" id="monitor-summary"></div>
       <div class="monitor-list" id="monitor-list">
         <div class="monitor-empty">Fix + CMS filtering is enabled by default. Start a search to monitor matched categories here.</div>
       </div>
@@ -925,6 +975,7 @@
 <script>
   const PAGE_SIZE = 100;
   const MAX_PREVIEW_CHARS = 360;
+  const MONITOR_COLLAPSED_LIMIT = 12;
   const ENGINE_INFO = {
     native: {
       label: 'Native',
@@ -966,6 +1017,15 @@
   let speedTimer = null;
   let filterMonitorTimer = null;
   let filterMonitorInFlight = false;
+  let filterMonitorItems = [];
+  let filterMonitorExpanded = false;
+  let filterMonitorSort = 'count_desc';
+  let filterMonitorState = {
+    enabled: true,
+    outputDir: '',
+    totalPanels: 0,
+    totalLines: 0
+  };
   let lastCount = 0;
   let searchStartedAt = 0;
   let latestProgress = {
@@ -1086,19 +1146,74 @@
     }
   }
 
+  function getSortedMonitorItems() {
+    const items = [...filterMonitorItems];
+    if (filterMonitorSort === 'name_asc') {
+      items.sort((a, b) => {
+        const nameCompare = String(a?.cms_name || '').localeCompare(String(b?.cms_name || ''), undefined, { sensitivity: 'base' });
+        if (nameCompare !== 0) return nameCompare;
+        return String(a?.output_file || '').localeCompare(String(b?.output_file || ''), undefined, { sensitivity: 'base' });
+      });
+      return items;
+    }
+
+    items.sort((a, b) => {
+      const countDiff = Number(b?.count || 0) - Number(a?.count || 0);
+      if (countDiff !== 0) return countDiff;
+      const nameCompare = String(a?.cms_name || '').localeCompare(String(b?.cms_name || ''), undefined, { sensitivity: 'base' });
+      if (nameCompare !== 0) return nameCompare;
+      return String(a?.output_file || '').localeCompare(String(b?.output_file || ''), undefined, { sensitivity: 'base' });
+    });
+    return items;
+  }
+
+  function setMonitorSummary(message = '') {
+    $('monitor-summary').textContent = message;
+  }
+
+  function updateMonitorToggle(totalItems, visibleItems) {
+    const button = $('monitor-toggle');
+    const hasOverflow = totalItems > MONITOR_COLLAPSED_LIMIT;
+    button.hidden = !hasOverflow;
+    if (!hasOverflow) {
+      button.textContent = 'Read more';
+      return;
+    }
+
+    button.textContent = filterMonitorExpanded
+      ? 'Show less'
+      : `Read more (${(totalItems - visibleItems).toLocaleString()} more)`;
+  }
+
   function resetFilterMonitor(message) {
+    filterMonitorItems = [];
+    filterMonitorExpanded = false;
+    filterMonitorState = {
+      enabled: fixFilterEnabled,
+      outputDir: '',
+      totalPanels: 0,
+      totalLines: 0
+    };
     $('monitor-panels-chip').textContent = '0 Categories';
     $('monitor-lines-chip').textContent = '0 Matched Lines';
     $('monitor-output-path').textContent = fixFilterEnabled ? 'Filter output: --' : 'Filter output: disabled';
+    setMonitorSummary('');
+    updateMonitorToggle(0, 0);
     $('monitor-list').innerHTML = `<div class="monitor-empty">${message}</div>`;
   }
 
   function renderFilterMonitor(payload) {
     const enabled = payload && payload.enabled !== false;
-    const items = Array.isArray(payload?.items) ? payload.items : [];
+    filterMonitorItems = Array.isArray(payload?.items) ? payload.items : [];
     const totalPanels = payload?.total_panels || 0;
     const totalLines = payload?.total_lines || 0;
     const outputDir = payload?.output_dir || '';
+    filterMonitorState = {
+      enabled,
+      outputDir,
+      totalPanels,
+      totalLines
+    };
 
     $('monitor-panels-chip').textContent = `${totalPanels.toLocaleString()} Categories`;
     $('monitor-lines-chip').textContent = `${totalLines.toLocaleString()} Matched Lines`;
@@ -1107,16 +1222,32 @@
       : 'Filter output: disabled';
 
     if (!enabled) {
+      setMonitorSummary('');
+      updateMonitorToggle(0, 0);
       $('monitor-list').innerHTML = '<div class="monitor-empty">Fix + CMS filtering is disabled for this search.</div>';
       return;
     }
 
-    if (items.length === 0) {
+    if (filterMonitorItems.length === 0) {
+      setMonitorSummary('');
+      updateMonitorToggle(0, 0);
       $('monitor-list').innerHTML = '<div class="monitor-empty">No category matches yet. CMS, panel, and service hits will appear here in realtime.</div>';
       return;
     }
 
-    $('monitor-list').innerHTML = items.map((item) => `
+    const sortedItems = getSortedMonitorItems();
+    const visibleItems = filterMonitorExpanded
+      ? sortedItems
+      : sortedItems.slice(0, MONITOR_COLLAPSED_LIMIT);
+
+    updateMonitorToggle(sortedItems.length, visibleItems.length);
+    setMonitorSummary(
+      visibleItems.length < sortedItems.length
+        ? `Showing ${visibleItems.length.toLocaleString()} of ${sortedItems.length.toLocaleString()} categories.`
+        : `${sortedItems.length.toLocaleString()} categories matched.`
+    );
+
+    $('monitor-list').innerHTML = visibleItems.map((item) => `
       <div class="monitor-card">
         <div class="monitor-card-head">
           <div>
@@ -1127,6 +1258,28 @@
         </div>
       </div>
     `).join('');
+  }
+
+  function onMonitorSortChange() {
+    filterMonitorSort = $('monitor-sort').value === 'name_asc' ? 'name_asc' : 'count_desc';
+    renderFilterMonitor({
+      enabled: filterMonitorState.enabled,
+      items: filterMonitorItems,
+      total_panels: filterMonitorState.totalPanels,
+      total_lines: filterMonitorState.totalLines,
+      output_dir: filterMonitorState.outputDir
+    });
+  }
+
+  function toggleMonitorExpanded() {
+    filterMonitorExpanded = !filterMonitorExpanded;
+    renderFilterMonitor({
+      enabled: filterMonitorState.enabled,
+      items: filterMonitorItems,
+      total_panels: filterMonitorState.totalPanels,
+      total_lines: filterMonitorState.totalLines,
+      output_dir: filterMonitorState.outputDir
+    });
   }
 
   function fetchFilterMonitor() {
@@ -1722,8 +1875,11 @@
       : 'Fix + CMS filtering is disabled. Enable it to watch category counters in realtime.');
   });
 
+  $('monitor-sort').addEventListener('change', onMonitorSortChange);
+
   syncEngineUI('native');
   syncFilterUI(true);
+  $('monitor-sort').value = filterMonitorSort;
   resetFilterMonitor('Fix + CMS filtering enabled by default. Start a search to monitor matched categories here.');
   updateButtons();
   setStatus('idle');

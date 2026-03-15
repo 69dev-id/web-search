@@ -160,9 +160,10 @@ type CMSRule struct {
 }
 
 type SearchPipeline struct {
-	rules     []CMSRule
-	writer    *FilterWriterManager
-	outputDir string
+	rules      []CMSRule
+	writer     *FilterWriterManager
+	outputDir  string
+	boundaries []string
 }
 
 type FilterWriterManager struct {
@@ -289,9 +290,10 @@ func newSearchPipeline(query string, rules []CMSRule) (*SearchPipeline, error) {
 	}
 
 	return &SearchPipeline{
-		rules:     rules,
-		writer:    newFilterWriterManager(outputDir),
-		outputDir: outputDir,
+		rules:      rules,
+		writer:     newFilterWriterManager(outputDir),
+		outputDir:  outputDir,
+		boundaries: buildRuleBoundaries(rules),
 	}, nil
 }
 
@@ -300,7 +302,7 @@ func (p *SearchPipeline) Process(line string) (string, *CMSRule, bool, error) {
 		return line, nil, true, nil
 	}
 
-	fixed := fixSearchResultLine(line)
+	fixed := fixSearchResultLine(line, p.boundaries)
 	if fixed == "" {
 		return "", nil, false, nil
 	}
@@ -1523,67 +1525,379 @@ func sanitizeRelativeOutputPath(input string) (string, error) {
 	}
 }
 
-func fixSearchResultLine(line string) string {
+func buildRuleBoundaries(rules []CMSRule) []string {
+	seen := make(map[string]struct{}, len(rules)*4)
+	boundaries := make([]string, 0, len(rules)*4+24)
+
+	add := func(value string) {
+		value = strings.ToLower(strings.TrimSpace(value))
+		value = strings.TrimRight(value, "/")
+		if value == "" {
+			return
+		}
+		if _, exists := seen[value]; exists {
+			return
+		}
+		seen[value] = struct{}{}
+		boundaries = append(boundaries, value)
+	}
+
+	common := []string{
+		"/auth/login",
+		"/auth/signin",
+		"/auth/sign-in",
+		"/login",
+		"/signin",
+		"/sign-in",
+		"/sign_in",
+		"/logon",
+		"/user/login",
+		"/users/login",
+		"/member/login",
+		"/account/login",
+		"/portal/login",
+		"/panel/login",
+		"/admin/login",
+		"/administrator/login",
+		"/wp-login.php",
+		"/administrator/index.php",
+		"/administrator",
+		"/admin",
+	}
+	for _, boundary := range common {
+		add(boundary)
+	}
+
+	for _, rule := range rules {
+		for _, pattern := range rule.Pattern {
+			candidate := strings.ToLower(strings.TrimSpace(pattern))
+			candidate = strings.ReplaceAll(candidate, " ", "")
+			if candidate == "" || strings.ContainsAny(candidate, "|:") {
+				continue
+			}
+
+			if strings.HasPrefix(candidate, "/") {
+				add(candidate)
+				continue
+			}
+
+			if idx := strings.Index(candidate, "/"); idx > 0 && idx < len(candidate)-1 {
+				add(candidate[idx:])
+			}
+		}
+	}
+
+	sort.Slice(boundaries, func(i, j int) bool {
+		if len(boundaries[i]) == len(boundaries[j]) {
+			return boundaries[i] < boundaries[j]
+		}
+		return len(boundaries[i]) > len(boundaries[j])
+	})
+
+	return boundaries
+}
+
+func fixSearchResultLine(line string, boundaries []string) string {
+	cleaned := normalizeFixedSearchLine(line)
+	if cleaned == "" {
+		return ""
+	}
+
+	left, password, ok := splitTrailingCredential(cleaned)
+	if !ok {
+		return cleaned
+	}
+
+	password = cleanCredentialToken(password)
+	if !isLikelyPasswordToken(password) {
+		return cleaned
+	}
+
+	urlPart, userPart, ok := splitURLAndUser(left, boundaries)
+	if !ok {
+		return cleaned
+	}
+
+	urlPart = normalizeURLCandidate(urlPart)
+	userPart = cleanCredentialToken(userPart)
+	if urlPart == "" || !isLikelyUserToken(userPart) {
+		return cleaned
+	}
+
+	return urlPart + "|" + userPart + "|" + password
+}
+
+func normalizeFixedSearchLine(line string) string {
 	cleaned := strings.TrimSpace(strings.ToValidUTF8(line, ""))
 	if cleaned == "" {
 		return ""
 	}
 
+	cleaned = extractRelevantSegment(cleaned)
 	cleaned = strings.NewReplacer(
 		"\r", "",
 		"\n", "",
 		"\t", "",
 		" ", "",
+		";", "|",
 	).Replace(cleaned)
 	if cleaned == "" {
 		return ""
 	}
 
-	lower := strings.ToLower(cleaned)
-	domainAtStart := false
-	if match := domainPattern.FindStringIndex(cleaned); match != nil && match[0] == 0 {
-		domainAtStart = true
+	return normalizeURLCandidate(cleaned)
+}
+
+func splitTrailingCredential(line string) (string, string, bool) {
+	index := findLastCredentialSeparator(line, len(line))
+	if index <= 0 || index >= len(line)-1 {
+		return "", "", false
 	}
-	if !strings.HasPrefix(lower, "https://") &&
-		!strings.HasPrefix(lower, "http://") &&
-		!strings.HasPrefix(lower, "ftp://") &&
-		!strings.HasPrefix(lower, "sftp://") &&
-		domainAtStart {
-		switch {
-		case strings.HasPrefix(lower, "ftp."):
-			cleaned = "ftp://" + cleaned
-		case strings.HasPrefix(lower, "sftp."):
-			cleaned = "sftp://" + cleaned
-		default:
-			cleaned = "https://" + cleaned
+	return line[:index], line[index+1:], true
+}
+
+func splitURLAndUser(left string, boundaries []string) (string, string, bool) {
+	if urlPart, userPart, ok := splitWithExplicitUserSeparator(left); ok {
+		return urlPart, userPart, true
+	}
+	if urlPart, userPart, ok := splitWithBoundary(left, boundaries); ok {
+		return urlPart, userPart, true
+	}
+	if urlPart, userPart, ok := splitWithTrailingEmail(left); ok {
+		return urlPart, userPart, true
+	}
+	if urlPart, userPart, ok := splitWithTrailingSlash(left); ok {
+		return urlPart, userPart, true
+	}
+	return "", "", false
+}
+
+func splitWithExplicitUserSeparator(left string) (string, string, bool) {
+	index := findLastCredentialSeparator(left, len(left))
+	if index <= 0 || index >= len(left)-1 {
+		return "", "", false
+	}
+
+	userPart := cleanCredentialToken(left[index+1:])
+	if !isLikelyUserToken(userPart) {
+		return "", "", false
+	}
+
+	urlPart := left[:index]
+	if normalizeURLCandidate(urlPart) == "" {
+		return "", "", false
+	}
+
+	return urlPart, userPart, true
+}
+
+func splitWithTrailingEmail(left string) (string, string, bool) {
+	matches := emailPattern.FindAllStringIndex(left, -1)
+	for i := len(matches) - 1; i >= 0; i-- {
+		start, end := matches[i][0], matches[i][1]
+		if end != len(left) {
+			continue
+		}
+
+		userPart := cleanCredentialToken(left[start:end])
+		urlPart := trimJoinedURL(left[:start])
+		if normalizeURLCandidate(urlPart) == "" || !isLikelyUserToken(userPart) {
+			continue
+		}
+
+		return urlPart, userPart, true
+	}
+	return "", "", false
+}
+
+func splitWithBoundary(left string, boundaries []string) (string, string, bool) {
+	lowerLeft := strings.ToLower(left)
+	bestEnd := -1
+	bestLength := -1
+	bestURL := ""
+	bestUser := ""
+
+	for _, boundary := range boundaries {
+		index := strings.LastIndex(lowerLeft, boundary)
+		if index < 0 {
+			continue
+		}
+
+		end := index + len(boundary)
+		if end >= len(left) {
+			continue
+		}
+
+		urlPart := left[:end]
+		userPart := cleanCredentialToken(left[end:])
+		if !isLikelyUserToken(userPart) && end < len(left) && left[end] == '/' {
+			userPart = cleanCredentialToken(left[end+1:])
+		}
+		if !isLikelyUserToken(userPart) {
+			continue
+		}
+
+		urlPart = trimJoinedURL(urlPart)
+		if normalizeURLCandidate(urlPart) == "" {
+			continue
+		}
+
+		if end > bestEnd || (end == bestEnd && len(boundary) > bestLength) {
+			bestEnd = end
+			bestLength = len(boundary)
+			bestURL = urlPart
+			bestUser = userPart
 		}
 	}
 
-	cleaned = strings.NewReplacer(
+	if bestEnd < 0 {
+		return "", "", false
+	}
+	return bestURL, bestUser, true
+}
+
+func splitWithTrailingSlash(left string) (string, string, bool) {
+	index := strings.LastIndex(left, "/")
+	schemeIndex := strings.Index(left, "://")
+	if index <= 0 || index >= len(left)-1 || (schemeIndex >= 0 && index <= schemeIndex+2) {
+		return "", "", false
+	}
+
+	userPart := cleanCredentialToken(left[index+1:])
+	if !isLikelyUserToken(userPart) {
+		return "", "", false
+	}
+
+	urlPart := trimJoinedURL(left[:index])
+	if normalizeURLCandidate(urlPart) == "" {
+		return "", "", false
+	}
+
+	return urlPart, userPart, true
+}
+
+func normalizeURLCandidate(input string) string {
+	cleaned := strings.TrimSpace(strings.ToValidUTF8(input, ""))
+	cleaned = strings.NewReplacer("\r", "", "\n", "", "\t", "", " ", "").Replace(cleaned)
+	cleaned = strings.Trim(cleaned, "|:;")
+	if cleaned == "" {
+		return ""
+	}
+
+	cleaned = collapseDuplicateSchemes(cleaned)
+	lower := strings.ToLower(cleaned)
+	if !strings.HasPrefix(lower, "https://") &&
+		!strings.HasPrefix(lower, "http://") &&
+		!strings.HasPrefix(lower, "ftp://") &&
+		!strings.HasPrefix(lower, "sftp://") {
+		if match := domainPattern.FindStringIndex(cleaned); match != nil && match[0] == 0 {
+			switch {
+			case strings.HasPrefix(lower, "ftp."):
+				cleaned = "ftp://" + cleaned
+			case strings.HasPrefix(lower, "sftp."):
+				cleaned = "sftp://" + cleaned
+			default:
+				cleaned = "https://" + cleaned
+			}
+		}
+	}
+
+	cleaned = collapseDuplicateSchemes(cleaned)
+	if match := domainPattern.FindStringIndex(cleaned); match == nil || match[0] != 0 {
+		return ""
+	}
+
+	return cleaned
+}
+
+func collapseDuplicateSchemes(input string) string {
+	replacer := strings.NewReplacer(
 		"https://https://", "https://",
 		"http://http://", "http://",
 		"https://http://", "https://",
 		"http://https://", "http://",
 		"ftp://ftp://", "ftp://",
 		"sftp://sftp://", "sftp://",
-	).Replace(cleaned)
+	)
 
-	cleaned = strings.ReplaceAll(cleaned, ":", "|")
-	cleaned = strings.NewReplacer(
-		"https|//", "https://",
-		"http|//", "http://",
-		"ftp|//", "ftp://",
-		"sftp|//", "sftp://",
-	).Replace(cleaned)
+	for {
+		updated := replacer.Replace(input)
+		if updated == input {
+			return updated
+		}
+		input = updated
+	}
+}
 
-	cleaned = strings.NewReplacer(
-		"https://https://", "https://",
-		"http://http://", "http://",
-		"ftp://ftp://", "ftp://",
-		"sftp://sftp://", "sftp://",
-	).Replace(cleaned)
+func findLastCredentialSeparator(line string, limit int) int {
+	if limit > len(line) {
+		limit = len(line)
+	}
 
-	return strings.TrimSpace(cleaned)
+	for i := limit - 1; i >= 0; i-- {
+		switch line[i] {
+		case '|', ';':
+			return i
+		case ':':
+			if i+2 < len(line) && line[i+1] == '/' && line[i+2] == '/' {
+				continue
+			}
+			return i
+		}
+	}
+	return -1
+}
+
+func cleanCredentialToken(token string) string {
+	token = strings.TrimSpace(strings.ToValidUTF8(token, ""))
+	token = strings.Trim(token, "|:;/")
+	return strings.TrimSpace(token)
+}
+
+func isLikelyUserToken(token string) bool {
+	token = cleanCredentialToken(token)
+	if token == "" || len(token) > 320 {
+		return false
+	}
+	if strings.Contains(token, "://") || strings.ContainsAny(token, "/\\ \r\n\t") {
+		return false
+	}
+
+	for _, r := range token {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return true
+		}
+	}
+	return false
+}
+
+func isLikelyPasswordToken(token string) bool {
+	token = strings.TrimSpace(strings.ToValidUTF8(token, ""))
+	token = strings.Trim(token, "|:;")
+	if token == "" || len(token) > 512 {
+		return false
+	}
+	return !strings.ContainsAny(token, " \r\n\t")
+}
+
+func trimJoinedURL(urlPart string) string {
+	urlPart = strings.TrimSpace(strings.ToValidUTF8(urlPart, ""))
+	urlPart = strings.TrimRight(urlPart, "|:")
+	if strings.HasSuffix(urlPart, "/") {
+		trimmed := strings.TrimRight(urlPart, "/")
+		if trimmed == "" {
+			return urlPart
+		}
+
+		afterScheme := trimmed
+		if index := strings.Index(afterScheme, "://"); index >= 0 {
+			afterScheme = afterScheme[index+3:]
+		}
+		if strings.Contains(afterScheme, "/") {
+			urlPart = trimmed
+		}
+	}
+	return urlPart
 }
 
 func matchCMSRule(rules []CMSRule, line string) *CMSRule {
